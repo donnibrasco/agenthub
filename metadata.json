@@ -1,0 +1,6 @@
+{
+  "name": "NeuroNest AI Command Center",
+  "description": "Modular desktop dashboard for launching agents, managing workflows, tracking data, and monitoring real-time performance insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

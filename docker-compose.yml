@@ -1,0 +1,19 @@
+services:
+  neuronest:
+    build: .
+    container_name: neuronest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEURONEST_DB_PATH: /data/neuronest.sqlite
+      NEURONEST_SECRET: ${NEURONEST_SECRET:-change-me-on-vps}
+      NEURONEST_INGEST_KEY: ${NEURONEST_INGEST_KEY:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+    volumes:
+      - neuronest_data:/data
+
+volumes:
+  neuronest_data:

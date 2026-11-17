@@ -1,7 +1,11 @@
-# Optional automatic HTTPS reverse proxy with Caddy on Hetzner VPS.
-# Replace agents.yourdomain.com with your domain pointing to your Hetzner IPv4,
-# or remove this file if using Nginx / Cloudflare Tunnel directly.
-
-agents.yourdomain.com {
-    reverse_proxy 127.0.0.1:3000
+agenticprocess.io {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+    reverse_proxy 127.0.0.1:3200
 }

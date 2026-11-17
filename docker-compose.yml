@@ -1,19 +1,34 @@
 services:
   neuronest:
-    build: .
+    build:
+      context: .
+      network: host
     container_name: neuronest
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3200:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
       NEURONEST_DB_PATH: /data/neuronest.sqlite
-      NEURONEST_SECRET: ${NEURONEST_SECRET:-change-me-on-vps}
-      NEURONEST_INGEST_KEY: ${NEURONEST_INGEST_KEY:-}
-      APP_URL: ${APP_URL:-http://localhost:3000}
+      NEURONEST_SECRET: ${NEURONEST_SECRET:?Set NEURONEST_SECRET in .env}
+      NEURONEST_INGEST_KEY: ${NEURONEST_INGEST_KEY:?Set NEURONEST_INGEST_KEY in .env}
+      APP_URL: ${APP_URL:-https://agenticprocess.io}
+      TRUST_PROXY: 172.30.90.1
     volumes:
       - neuronest_data:/data
+    networks:
+      - egress
+
+# Stable bridge and subnet for this VPS's NeuroNest egress firewall.
+networks:
+  egress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-neuronest
+    ipam:
+      config:
+        - subnet: 172.30.90.0/24
 
 volumes:
   neuronest_data:

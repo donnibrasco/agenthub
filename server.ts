@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
+import { installAuth } from './server/auth.ts';
+import { AuthStore } from './server/authStore.ts';
 import {
   NeuroDatabase,
   TEAM_MEMBERS_STATIC,
@@ -26,7 +28,8 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '2mb' }));
+  app.disable('x-powered-by');
+  if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
 
   const db = new NeuroDatabase();
   const workspaceSecret = db.getWorkspaceSecret();
@@ -43,6 +46,10 @@ async function startServer() {
     };
     res.status(health.ok ? 200 : 503).json(payload);
   });
+
+  const publicUrl = new URL(process.env.APP_URL || `http://localhost:${PORT}`);
+  installAuth(app, new AuthStore(db.db), publicUrl);
+  app.use(express.json({ limit: '2mb' }));
 
   // ── Bootstrap all persisted workspace state ──
   app.get('/api/bootstrap', (_req, res) => {

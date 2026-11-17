@@ -6,7 +6,8 @@ import {
   GitBranch, 
   LineChart, 
   Sparkles,
-  ListTodo
+  ListTodo,
+  LogOut
 } from 'lucide-react';
 
 export function NeuroSidebar() {
@@ -153,6 +154,12 @@ export function NeuroSidebar() {
             <div className="text-[11px] text-neutral-500 font-mono truncate">eug.frank01@lain.com</div>
           </div>
         </div>
+        <form action="/logout" method="post" className="mt-3">
+          <button type="submit" className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-neutral-400 hover:text-white hover:bg-[#1D1E20]">
+            <LogOut className="w-4 h-4" />
+            <span>Sign out</span>
+          </button>
+        </form>
       </div>
 
     </aside>

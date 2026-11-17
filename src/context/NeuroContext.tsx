@@ -15,6 +15,12 @@ import {
   applyImprovementDecision,
 } from '../lib/improvementsEngine';
 
+async function workspaceFetch(input: string, init?: RequestInit) {
+  const response = await fetch(input, init);
+  if (response.status === 401) window.location.replace('/login');
+  return response;
+}
+
 export interface NeuroAgent {
   id: string;
   name: string;
@@ -214,7 +220,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
 
   const refreshWorkspace = useCallback(async () => {
     try {
-      const res = await fetch('/api/bootstrap');
+      const res = await workspaceFetch('/api/bootstrap');
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data.models)) setAgents(data.models);
@@ -242,7 +248,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     provider: string;
     authToken?: string;
   }): Promise<EndpointProbeResult> => {
-    const res = await fetch('/api/probe', {
+    const res = await workspaceFetch('/api/probe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -254,7 +260,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const connectModel = async (payload: ModelConnectionPayload): Promise<NeuroAgent | null> => {
-    const res = await fetch('/api/models', {
+    const res = await workspaceFetch('/api/models', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -293,7 +299,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
       )
     );
 
-    const res = await fetch(`/api/models/${encodeURIComponent(id)}`, {
+    const res = await workspaceFetch(`/api/models/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -307,7 +313,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const pingConnectedModel = async (id: string): Promise<EndpointProbeResult> => {
-    const res = await fetch(`/api/models/${encodeURIComponent(id)}/ping`, {
+    const res = await workspaceFetch(`/api/models/${encodeURIComponent(id)}/ping`, {
       method: 'POST',
     });
     if (!res.ok) {
@@ -325,7 +331,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     if (activeLaunchAgent?.id === id) setActiveLaunchAgent(null);
     if (editingModel?.id === id) setEditingModel(null);
 
-    await fetch(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await workspaceFetch(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
   };
 
   const toggleAgentStatus = async (agentId: string) => {
@@ -339,7 +345,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
       )
     );
 
-    await fetch(`/api/models/${encodeURIComponent(agentId)}`, {
+    await workspaceFetch(`/api/models/${encodeURIComponent(agentId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: nextStatus }),
@@ -348,7 +354,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
 
   const launchAgentPrompt = async (agentId: string, promptText: string): Promise<string> => {
     const target = agents.find(a => a.id === agentId) || agents[0];
-    const res = await fetch(`/api/models/${encodeURIComponent(agentId)}/run`, {
+    const res = await workspaceFetch(`/api/models/${encodeURIComponent(agentId)}/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ promptText }),
@@ -408,7 +414,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
       prev.map(a => (a.id === agentId ? { ...a, score: nextScore, userVote: newVote } : a))
     );
 
-    await fetch(`/api/models/${encodeURIComponent(agentId)}`, {
+    await workspaceFetch(`/api/models/${encodeURIComponent(agentId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ score: nextScore, userVote: newVote }),
@@ -424,7 +430,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     const currentJob = jobs.find(j => j.id === jobId);
     const nextStatus = currentJob?.status === 'queued' ? 'in_progress' : currentJob?.status;
 
-    const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    const res = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -453,7 +459,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     const idleAgent = findBestIdleAgent(job, agents);
     if (!idleAgent) return { success: false };
 
-    const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    const res = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -476,7 +482,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const autoAssignAllQueuedJobs = async (): Promise<number> => {
-    const res = await fetch('/api/jobs/auto-assign', { method: 'POST' });
+    const res = await workspaceFetch('/api/jobs/auto-assign', { method: 'POST' });
     if (!res.ok) return 0;
     const data = await res.json();
     if (data.jobs) setJobs(data.jobs);
@@ -485,7 +491,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const createJob = async (jobData: Partial<NeuroJob>) => {
-    const res = await fetch('/api/jobs', {
+    const res = await workspaceFetch('/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(jobData),
@@ -498,7 +504,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const updateJobStatus = async (jobId: string, status: NeuroJob['status']) => {
-    const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    const res = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -515,7 +521,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
 
   const resolveImprovement = async (proposalId: string, decision: 'applied' | 'dismissed') => {
     setImprovementProposals(prev => applyImprovementDecision(prev, proposalId, decision));
-    const res = await fetch(`/api/improvements/${encodeURIComponent(proposalId)}/decision`, {
+    const res = await workspaceFetch(`/api/improvements/${encodeURIComponent(proposalId)}/decision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ decision }),
@@ -527,7 +533,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const scanModelsForFriction = async (): Promise<number> => {
-    const res = await fetch('/api/improvements/scan', { method: 'POST' });
+    const res = await workspaceFetch('/api/improvements/scan', { method: 'POST' });
     if (res.ok) {
       const data = await res.json();
       if (data.improvements) applyImprovementsBundle(data.improvements);
@@ -544,7 +550,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     setTotalAnalyzedMessages(0);
     setDailySignalSeries([]);
 
-    const res = await fetch('/api/improvements/reset', { method: 'POST' });
+    const res = await workspaceFetch('/api/improvements/reset', { method: 'POST' });
     if (res.ok) {
       const data = await res.json();
       if (data.improvements) applyImprovementsBundle(data.improvements);
@@ -553,7 +559,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
 
   const submitImproveFeedback = async (message: string) => {
     if (!message.trim()) return;
-    const res = await fetch('/api/improvements/feedback', {
+    const res = await workspaceFetch('/api/improvements/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),

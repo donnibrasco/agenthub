@@ -38,7 +38,7 @@ export function authPage(error?: string): string {
       <label>Password <input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
       <button type="submit">Sign in</button>
     </form>
-    <footer><a href="/" style="color:inherit">Download the desktop app</a> · by AgenticProcess</footer>
+    <footer><a href="/download" style="color:inherit">Download the desktop app</a> · by AgenticProcess</footer>
   </main>
 </body>
 </html>`;

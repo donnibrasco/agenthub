@@ -77,7 +77,7 @@ async function startServer() {
     const release = os in DOWNLOAD_FILES ? await latestDesktopRelease() : null;
     const url = release?.urls[os];
     if (url) res.redirect(302, url);
-    else res.redirect(302, '/#download');
+    else res.redirect(302, '/download#download');
   });
 
   // ── Computers that run Codex / Claude Code (AgentHub connector) ──

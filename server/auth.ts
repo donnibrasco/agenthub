@@ -105,12 +105,15 @@ export function installAuth(app: Express, store: AuthStore, origin: URL) {
     if (req.method === 'POST' && /^\/api\/telemetry\/events\/?$/i.test(req.path)) return next();
     // Public: desktop downloads, and the homepage for visitors who aren't signed in.
     if (req.method === 'GET' && /^\/download\/(mac|windows)\/?$/i.test(req.path)) return next();
-    if ((req.method === 'GET' || req.method === 'HEAD') && req.path === '/' && !session(req)) {
+    // The homepage: at / for visitors, and at /download for everyone (signed in or not).
+    const isRead = req.method === 'GET' || req.method === 'HEAD';
+    if (isRead && ((req.path === '/' && !session(req)) || /^\/download\/?$/i.test(req.path))) {
+      const signedIn = Boolean(session(req));
       void latestDesktopRelease().then(release => {
         const nonce = randomBytes(16).toString('base64');
         res.set('Content-Security-Policy', `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`);
         res.set('Cache-Control', 'no-store');
-        res.type('html').send(landingPage({ release, nonce }));
+        res.type('html').send(landingPage({ release, nonce, signedIn }));
       });
       return;
     }

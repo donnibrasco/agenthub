@@ -10,7 +10,9 @@ const APPLE = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24
 const WINDOWS = '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.1 10.4 4v7.1H3V5.1zm8.3-1.2L21 2.5v8.6h-9.7V3.9zM3 12.9h7.4V20L3 18.9v-6zm8.3 0H21v8.6l-9.7-1.4v-7.2z"/></svg>';
 const ICON = (d: string) => `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
-export function landingPage({ release, nonce }: { release: DesktopRelease | null; nonce: string }): string {
+export function landingPage({ release, nonce, signedIn = false }: { release: DesktopRelease | null; nonce: string; signedIn?: boolean }): string {
+  // Signed-in people see "Open AgentHub" (the workspace at /) instead of "Sign in".
+  const appLink = signedIn ? '<a class="keep" href="/">Open AgentHub</a>' : '<a class="keep" href="/login">Sign in</a>';
   const version = release ? esc(release.version) : '';
   const has = { mac: Boolean(release?.urls.mac), windows: Boolean(release?.urls.windows) };
   const meta = {
@@ -135,12 +137,12 @@ export function landingPage({ release, nonce }: { release: DesktopRelease | null
 <body>
 <header class="nav">
   <div class="wrap">
-    <a class="brand" href="/"><span class="brand-mark">${LOGO}</span>AgentHub</a>
+    <a class="brand" href="/download"><span class="brand-mark">${LOGO}</span>AgentHub</a>
     <nav class="nav-links" aria-label="Main">
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
       <a href="#download">Download</a>
-      <a class="keep" href="/login">Sign in</a>
+      ${appLink}
     </nav>
   </div>
 </header>
@@ -154,7 +156,7 @@ export function landingPage({ release, nonce }: { release: DesktopRelease | null
       ${button('mac', true)}
       ${button('windows', false)}
     </div>
-    <p class="cta-note">${release ? `Free · Version ${version} · ` : ''}Or <a href="/login">open AgentHub in your browser</a></p>
+    <p class="cta-note">${release ? `Free · Version ${version} · ` : ''}Or <a href="${signedIn ? '/' : '/login'}">open AgentHub in your browser</a></p>
 
     <div class="preview" role="img" aria-label="AgentHub showing a job: the agent searched the web, then answered with a comparison table">
       <div class="chrome"><i></i><i></i><i></i><span>AgentHub</span></div>
@@ -228,7 +230,7 @@ export function landingPage({ release, nonce }: { release: DesktopRelease | null
         <details><summary>First time opening it?</summary><ol><li>Run AgentHub-windows-setup.exe. It installs for your user only, without admin rights.</li><li>If Windows SmartScreen appears, click <b>More info → Run anyway</b>. (This app isn't code-signed yet.)</li></ol></details>
       </div>
     </div>
-    <p class="cta-note" style="text-align:left">Using Linux, or prefer a terminal? Sign in, open <b>Connections → Add a computer</b> and run the one-line connector command.</p>
+    <p class="cta-note" style="text-align:left">Using Linux, or prefer a terminal? ${signedIn ? 'Open' : 'Sign in, open'} <b>Connections → Add a computer</b> and run the one-line connector command.</p>
   </section>
 
   <section class="wrap">
@@ -241,7 +243,7 @@ export function landingPage({ release, nonce }: { release: DesktopRelease | null
 </main>
 
 <footer>
-  <div class="wrap"><span>© ${new Date().getFullYear()} AgentHub by AgenticProcess</span><span><a href="/login">Sign in</a></span></div>
+  <div class="wrap"><span>© ${new Date().getFullYear()} AgentHub by AgenticProcess</span><span>${signedIn ? '<a href="/">Open AgentHub</a>' : '<a href="/login">Sign in</a>'}</span></div>
 </footer>
 
 <script nonce="${nonce}">

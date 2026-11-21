@@ -1,5 +1,6 @@
-import { Plug, GitBranch, LayoutGrid, LineChart, List, ListTodo, LogOut, Plus, Sparkles, UserRound } from 'lucide-react';
+import { Download, Plug, GitBranch, LayoutGrid, LineChart, List, ListTodo, LogOut, Plus, Sparkles, UserRound } from 'lucide-react';
 import { useNeuro, type ActiveTab } from '../context/NeuroContext';
+import { desktopBridge } from '../lib/devices';
 
 const mainLinks = [
   { tab: 'timeline', label: 'Timeline', Icon: List },
@@ -46,6 +47,12 @@ export function NeuroSidebar({ onNavigate }: { onNavigate: (tab: ActiveTab) => v
         <div className={`space-y-1 border-t pt-3 border-[#e5dfd4]`}>{workspaceLinks.map(renderLink)}</div>
       </nav>
       <div className={`mt-auto border-t pt-3 border-[#e5dfd4]`}>
+        {!desktopBridge() && (
+          <a href="/download#download" title="Download desktop app"
+            className="mb-2 flex min-h-9 w-full items-center justify-center gap-2 rounded-lg text-xs font-medium text-[#08666c] transition hover:bg-[#ebe6dc] focus-visible:outline-2 focus-visible:outline-[#26878b] sm:justify-start sm:px-2">
+            <Download aria-hidden="true" className="size-4" /><span className="sr-only sm:not-sr-only">Download desktop app</span>
+          </a>
+        )}
         <div className="flex items-center justify-center gap-2 py-1 sm:justify-start sm:px-2">
           <UserRound aria-hidden="true" className="size-4" /><span className="sr-only text-xs font-medium sm:not-sr-only">Workspace admin</span>
         </div>

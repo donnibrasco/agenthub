@@ -154,6 +154,7 @@ function createWindow() {
     icon: path.join(here, 'assets', 'icon.png'),
     webPreferences: { preload: path.join(here, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
   });
+  if (!IS_MAC) { win.removeMenu(); addShortcuts(win); }
   win.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) win.show(); });
   // Only AgentHub loads inside the app; every other link opens in the browser.
   win.webContents.setWindowOpenHandler(({ url }) => { if (isOurs(url)) void win.loadURL(url); else openOutside(url); return { action: 'deny' }; });
@@ -164,6 +165,23 @@ function createWindow() {
   });
   win.on('close', event => { if (!quitting) { event.preventDefault(); win.hide(); } });
   void win.loadURL(`${SERVER}/login`);
+}
+
+/** Without a menu bar, keep the usual shortcuts: reload, zoom and full screen. Copy/paste work on their own. */
+function addShortcuts(window) {
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const ctrl = input.control && !input.alt && !input.meta;
+    const contents = window.webContents;
+    let handled = true;
+    if ((ctrl && input.key.toLowerCase() === 'r') || input.key === 'F5') contents.reload();
+    else if (ctrl && (input.key === '=' || input.key === '+')) contents.setZoomLevel(Math.min(contents.getZoomLevel() + 0.5, 4));
+    else if (ctrl && input.key === '-') contents.setZoomLevel(Math.max(contents.getZoomLevel() - 0.5, -3));
+    else if (ctrl && input.key === '0') contents.setZoomLevel(0);
+    else if (input.key === 'F11') window.setFullScreen(!window.isFullScreen());
+    else handled = false;
+    if (handled) event.preventDefault();
+  });
 }
 
 function showWindow() {
@@ -206,6 +224,9 @@ function createTray() {
 }
 
 function createAppMenu() {
+  // Windows and Linux: no menu bar inside the window (shortcuts are handled in addShortcuts).
+  // macOS keeps its menu in the system menu bar; it also provides Cmd+C/V/Q.
+  if (!IS_MAC) { Menu.setApplicationMenu(null); return; }
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(IS_MAC ? [{ role: 'appMenu' }] : []),
     { role: 'fileMenu' }, { role: 'editMenu' },

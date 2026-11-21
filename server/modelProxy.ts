@@ -1,4 +1,10 @@
-import crypto from 'node:crypto';
+import { decryptSecretToken, encryptSecretToken } from './secrets.ts';
+
+export { decryptSecretToken, encryptSecretToken };
+import { isAgentGatewayProvider, isLocalAgentProvider, type EndpointProbeResult } from '../src/lib/modelConnection.ts';
+import { probeLocalAgent, runLocalAgent } from './localAgents.ts';
+import type { AgentStep } from '../src/lib/agentSteps.ts';
+import { prepareAttachments, type AgentAttachment } from './attachments.ts';
 
 export interface ProbeRequestSpec {
   url: string;
@@ -11,13 +17,6 @@ export interface ChatRequestSpec {
   body: Record<string, unknown>;
 }
 
-export interface ProbeResult {
-  reachable: boolean;
-  httpStatus?: number;
-  latencyMs: number;
-  message: string;
-}
-
 export interface PromptRunResult {
   ok: boolean;
   liveUpstream: boolean;
@@ -25,38 +24,13 @@ export interface PromptRunResult {
   tokensUsed: number;
   latencyMs: number;
   error?: string;
+  /** Visible work before the answer (Codex only). */
+  steps?: AgentStep[];
 }
 
-function deriveAesKey(secretSeed: string): Buffer {
-  return crypto.createHash('sha256').update(secretSeed || 'neuronest-local-workspace-key').digest();
-}
-
-export function encryptSecretToken(plain: string, secretSeed: string): string {
-  const trimmed = plain.trim();
-  if (!trimmed) return '';
-  const iv = crypto.randomBytes(12);
-  const key = deriveAesKey(secretSeed);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const encrypted = Buffer.concat([cipher.update(trimmed, 'utf8'), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`;
-}
-
-export function decryptSecretToken(encoded: string, secretSeed: string): string {
-  if (!encoded) return '';
-  const parts = encoded.split(':');
-  if (parts.length !== 3) return '';
-  try {
-    const iv = Buffer.from(parts[0], 'hex');
-    const tag = Buffer.from(parts[1], 'hex');
-    const ciphertext = Buffer.from(parts[2], 'hex');
-    const key = deriveAesKey(secretSeed);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
-  } catch {
-    return '';
-  }
+function modelApiBase(endpointUrl: string, provider: string): string {
+  const base = endpointUrl.trim().replace(/\/+$/, '');
+  return isAgentGatewayProvider(provider) && !base.endsWith('/v1') ? `${base}/v1` : base;
 }
 
 export function buildProbeRequest(
@@ -64,7 +38,7 @@ export function buildProbeRequest(
   provider: string,
   authToken?: string
 ): ProbeRequestSpec {
-  const cleanBase = endpointUrl.trim().replace(/\/+$/, '');
+  const cleanBase = modelApiBase(endpointUrl, provider);
   const headers: Record<string, string> = { Accept: 'application/json' };
 
   if (provider === 'Gemini') {
@@ -97,9 +71,10 @@ export function buildChatCompletionRequest(
   provider: string,
   modelId: string,
   promptText: string,
-  authToken?: string
+  authToken?: string,
+  images: { mime: string; data: string }[] = [],
 ): ChatRequestSpec {
-  const cleanBase = endpointUrl.trim().replace(/\/+$/, '');
+  const cleanBase = modelApiBase(endpointUrl, provider);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -113,7 +88,7 @@ export function buildChatCompletionRequest(
       url: `${base}/${normalizedModel}:generateContent${keyQuery}`,
       headers,
       body: {
-        contents: [{ parts: [{ text: promptText }] }],
+        contents: [{ parts: [{ text: promptText }, ...images.map(img => ({ inline_data: { mime_type: img.mime, data: img.data } }))] }],
       },
     };
   }
@@ -127,7 +102,12 @@ export function buildChatCompletionRequest(
       body: {
         model: modelId,
         max_tokens: 1024,
-        messages: [{ role: 'user', content: promptText }],
+        messages: [{
+          role: 'user',
+          content: images.length
+            ? [...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.data } })), { type: 'text', text: promptText }]
+            : promptText,
+        }],
       },
     };
   }
@@ -143,7 +123,7 @@ export function buildChatCompletionRequest(
       body: {
         model: modelId,
         stream: false,
-        messages: [{ role: 'user', content: promptText }],
+        messages: [{ role: 'user', content: promptText, ...(images.length ? { images: images.map(img => img.data) } : {}) }],
       },
     };
   }
@@ -153,8 +133,12 @@ export function buildChatCompletionRequest(
     headers,
     body: {
       model: modelId,
-      messages: [{ role: 'user', content: promptText }],
-      temperature: 0.3,
+      messages: [{
+        role: 'user',
+        content: images.length
+          ? [{ type: 'text', text: promptText }, ...images.map(img => ({ type: 'image_url', image_url: { url: `data:${img.mime};base64,${img.data}` } }))]
+          : promptText,
+      }],
     },
   };
 }
@@ -178,7 +162,7 @@ export function extractModelReplyText(
       .filter((t): t is string => typeof t === 'string')
       .join('\n');
     const usage = data.usageMetadata as Record<string, unknown> | undefined;
-    const tokensUsed = Number(usage?.totalTokenCount || 0) || Math.max(24, Math.ceil(text.length / 4));
+    const tokensUsed = Number(usage?.totalTokenCount || 0);
     return { text, tokensUsed };
   }
 
@@ -190,8 +174,7 @@ export function extractModelReplyText(
       .join('\n');
     const usage = data.usage as Record<string, unknown> | undefined;
     const tokensUsed =
-      Number(usage?.input_tokens || 0) + Number(usage?.output_tokens || 0) ||
-      Math.max(24, Math.ceil(text.length / 4));
+      Number(usage?.input_tokens || 0) + Number(usage?.output_tokens || 0);
     return { text, tokensUsed };
   }
 
@@ -200,8 +183,7 @@ export function extractModelReplyText(
     const msg = data.message as Record<string, unknown>;
     const text = typeof msg.content === 'string' ? msg.content : '';
     const tokensUsed =
-      Number(data.prompt_eval_count || 0) + Number(data.eval_count || 0) ||
-      Math.max(24, Math.ceil(text.length / 4));
+      Number(data.prompt_eval_count || 0) + Number(data.eval_count || 0);
     return { text, tokensUsed };
   }
 
@@ -211,41 +193,65 @@ export function extractModelReplyText(
   const choiceMsg = firstChoice?.message as Record<string, unknown> | undefined;
   const text = typeof choiceMsg?.content === 'string' ? choiceMsg.content : '';
   const usage = data.usage as Record<string, unknown> | undefined;
-  const tokensUsed = Number(usage?.total_tokens || 0) || Math.max(24, Math.ceil(text.length / 4));
+  const tokensUsed = Number(usage?.total_tokens || 0);
   return { text, tokensUsed };
+}
+
+function extractModelIds(payload: unknown): string[] | undefined {
+  const result = payload as { data?: unknown; models?: unknown } | null;
+  const entries = [result?.data, result?.models].find(Array.isArray);
+  if (!Array.isArray(entries)) return undefined;
+
+  const ids = entries.flatMap((entry: { id?: unknown; model?: unknown; name?: unknown } | null) => {
+    const id = entry?.id ?? entry?.model ?? entry?.name;
+    return typeof id === 'string' && id.trim() ? [id] : [];
+  });
+  return [...new Set(ids)].sort();
 }
 
 export async function probeModelEndpoint(
   endpointUrl: string,
   provider: string,
-  authToken?: string
-): Promise<ProbeResult> {
+  authToken?: string,
+  signal?: AbortSignal,
+): Promise<EndpointProbeResult> {
+  if (isLocalAgentProvider(provider)) return probeLocalAgent(provider, endpointUrl);
   const spec = buildProbeRequest(endpointUrl, provider, authToken);
   const start = Date.now();
   try {
     const res = await fetch(spec.url, {
       method: 'GET',
       headers: spec.headers,
-      signal: AbortSignal.timeout(4500),
+      redirect: authToken || isAgentGatewayProvider(provider) ? 'manual' : 'follow',
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(4500)]) : AbortSignal.timeout(4500),
     });
-    const latencyMs = Math.max(1, Date.now() - start);
     if (res.ok) {
+      const modelIds = extractModelIds(await res.json().catch(() => null))
+        ?.filter(id => !authToken || !id.includes(authToken));
       return {
-        reachable: true,
+        reachable: modelIds !== undefined,
         httpStatus: res.status,
-        latencyMs,
-        message: `${res.status} OK from ${new URL(spec.url).host}`,
+        latencyMs: Math.max(1, Date.now() - start),
+        message: modelIds === undefined
+          ? 'The endpoint did not return a model list. Check the provider and base URL.'
+          : modelIds.length ? `Found ${modelIds.length} model${modelIds.length === 1 ? '' : 's'}.` : 'The provider returned an empty model list.',
+        modelIds,
       };
     }
-    // A 401/403 proves the host is reachable on the network even if auth key is missing
-    const reachable = res.status === 401 || res.status === 403 || res.status === 404;
+    await res.body?.cancel();
+    const guidance = res.status >= 300 && res.status < 400
+      ? 'Use the final API base URL and check for an interactive sign-in redirect.'
+      : res.status === 401 || res.status === 403
+        ? 'Check the API key and its permissions.'
+        : 'Check the base URL and provider.';
     return {
-      reachable,
+      reachable: false,
       httpStatus: res.status,
-      latencyMs,
-      message: `HTTP ${res.status} (${res.statusText || 'Response received'})`,
+      latencyMs: Math.max(1, Date.now() - start),
+      message: `HTTP ${res.status}. ${guidance}`,
     };
   } catch (err) {
+    signal?.throwIfAborted();
     const latencyMs = Math.max(1, Date.now() - start);
     const reason = err instanceof Error ? err.message : 'Connection failed';
     return {
@@ -262,47 +268,59 @@ export async function runPromptAgainstModel(opts: {
   modelId: string;
   promptText: string;
   authToken?: string;
+  signal?: AbortSignal;
+  onSteps?: (steps: AgentStep[]) => void;
+  attachments?: AgentAttachment[];
 }): Promise<PromptRunResult> {
+  if (isLocalAgentProvider(opts.provider)) {
+    return runLocalAgent({ provider: opts.provider, endpointUrl: opts.endpointUrl, modelId: opts.modelId, promptText: opts.promptText, attachments: opts.attachments, signal: opts.signal, onSteps: opts.onSteps });
+  }
+  const prepared = opts.attachments?.length ? prepareAttachments(opts.attachments, { inlineImages: true }) : null;
+  const promptText = opts.promptText + (prepared?.promptAppendix ?? '');
   const spec = buildChatCompletionRequest(
     opts.endpointUrl,
     opts.provider,
     opts.modelId,
-    opts.promptText,
-    opts.authToken
+    promptText,
+    opts.authToken,
+    prepared?.images.flatMap(img => (img.data ? [{ mime: img.mime, data: img.data }] : [])) ?? [],
   );
 
   const start = Date.now();
   try {
+    const timeout = AbortSignal.timeout(120_000);
     const res = await fetch(spec.url, {
       method: 'POST',
       headers: spec.headers,
       body: JSON.stringify(spec.body),
-      signal: AbortSignal.timeout(15000),
+      redirect: opts.authToken || isAgentGatewayProvider(opts.provider) ? 'error' : 'follow',
+      signal: opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout,
     });
-    const latencyMs = Math.max(1, Date.now() - start);
-
     if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
+      const bodyText = await res.text().catch(() => '');
+      const errBody = opts.authToken ? bodyText.replaceAll(opts.authToken, '[redacted]') : bodyText;
       return {
         ok: false,
         liveUpstream: false,
         output: '',
         tokensUsed: 0,
-        latencyMs,
+        latencyMs: Math.max(1, Date.now() - start),
         error: `Upstream ${res.status}: ${errBody.slice(0, 240) || res.statusText}`,
       };
     }
 
     const json = await res.json();
-    const extracted = extractModelReplyText(opts.provider, json);
+    const { text, tokensUsed } = extractModelReplyText(opts.provider, json);
     return {
-      ok: true,
-      liveUpstream: true,
-      output: extracted.text || '(Model returned empty response)',
-      tokensUsed: extracted.tokensUsed,
-      latencyMs,
+      ok: Boolean(text.trim()),
+      liveUpstream: Boolean(text.trim()),
+      output: opts.authToken ? text.replaceAll(opts.authToken, '[redacted]') : text,
+      tokensUsed: Number.isFinite(tokensUsed) && tokensUsed > 0 ? tokensUsed : 0,
+      latencyMs: Math.max(1, Date.now() - start),
+      error: text.trim() ? undefined : 'The provider returned no text. Check that this model supports text generation.',
     };
   } catch (err) {
+    opts.signal?.throwIfAborted();
     const latencyMs = Math.max(1, Date.now() - start);
     const reason = err instanceof Error ? err.message : 'Network error';
     return {

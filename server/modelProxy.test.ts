@@ -6,6 +6,8 @@ import {
   buildProbeRequest,
   buildChatCompletionRequest,
   extractModelReplyText,
+  probeModelEndpoint,
+  runPromptAgainstModel,
 } from './modelProxy.ts';
 
 test('encryptSecretToken and decryptSecretToken round-trip API keys cleanly', () => {
@@ -65,4 +67,47 @@ test('extractModelReplyText extracts text and tokens from OpenAI and Gemini form
   });
   assert.strictEqual(gemini.text, 'Gemini online.');
   assert.strictEqual(gemini.tokensUsed, 51);
+});
+
+test('probe discovers live Ollama model IDs and reports invalid credentials as a failure', async t => {
+  const fetch = t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ models: [{ name: 'team-model:latest' }] }));
+  const endpoint = 'http://localhost:11434';
+  const discovered = await probeModelEndpoint(endpoint, 'Ollama');
+  assert.deepEqual(discovered.modelIds, ['team-model:latest']);
+  assert.equal(discovered.reachable, true);
+
+  fetch.mock.mockImplementation(async () => new Response(null, { status: 401 }));
+  const rejected = await probeModelEndpoint(endpoint, 'Ollama', 'bad-key');
+  assert.equal(rejected.reachable, false);
+  assert.equal(rejected.httpStatus, 401);
+  assert.match(rejected.message, /API key/);
+});
+
+test('prompt runs report provider text and never invent missing token usage', async t => {
+  t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ choices: [{ message: { content: 'Actual response' } }] }));
+  const result = await runPromptAgainstModel({
+    endpointUrl: 'https://model.example/v1', provider: 'OpenAI-Compatible', modelId: 'team-model', promptText: 'Check connection',
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.output, 'Actual response');
+  assert.equal(result.tokensUsed, 0);
+});
+
+test('agent gateway connections use the OpenAI-compatible API and do not follow sign-in redirects', async t => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () =>
+    new Response(null, { status: 302, headers: { Location: 'https://signin.example/' } }));
+  const probe = await probeModelEndpoint('https://agent.example/p/sales/', 'Hermes', 'hermes-token');
+  const [url, init] = fetchMock.mock.calls[0].arguments;
+  assert.equal(url, 'https://agent.example/p/sales/v1/models');
+  assert.equal(init?.redirect, 'manual');
+  assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer hermes-token');
+  assert.equal(probe.reachable, false);
+  assert.match(probe.message, /sign-in redirect/);
+
+  const chat = buildChatCompletionRequest('https://agent.example/v1', 'OpenClaw', 'openclaw/default', 'Reply with OK.', 'claw-token');
+  assert.equal(chat.url, 'https://agent.example/v1/chat/completions');
+  assert.equal(chat.body.model, 'openclaw/default');
+  assert.equal(chat.headers.Authorization, 'Bearer claw-token');
 });

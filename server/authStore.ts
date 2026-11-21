@@ -42,18 +42,27 @@ export class AuthStore {
         expires_at INTEGER NOT NULL
       );
     `);
+    // Sessions issued under the old setup flow never had dashboard access.
+    database.exec(`
+      BEGIN IMMEDIATE;
+      DELETE FROM admin_sessions WHERE EXISTS (
+        SELECT 1 FROM admin_credentials WHERE setup_code_hash IS NOT NULL
+      );
+      UPDATE admin_credentials SET setup_code_hash = NULL WHERE setup_code_hash IS NOT NULL;
+      COMMIT;
+    `);
   }
 
-  async createAdmin(password: string, setupCode: string): Promise<void> {
+  async createAdmin(password: string): Promise<void> {
     const passwordHash = await hashPassword(password);
     this.database.prepare(`
-      INSERT INTO admin_credentials (username, password_hash, setup_code_hash) VALUES (?, ?, ?)
-    `).run(ADMIN_USERNAME, passwordHash, digest(setupCode));
+      INSERT INTO admin_credentials (username, password_hash) VALUES (?, ?)
+    `).run(ADMIN_USERNAME, passwordHash);
   }
 
   getAdmin() {
-    return this.database.prepare('SELECT password_hash, setup_code_hash FROM admin_credentials WHERE username = ?')
-      .get(ADMIN_USERNAME) as { password_hash: string; setup_code_hash: string | null } | undefined;
+    return this.database.prepare('SELECT password_hash FROM admin_credentials WHERE username = ?')
+      .get(ADMIN_USERNAME) as { password_hash: string } | undefined;
   }
 
   createSession() {
@@ -69,36 +78,10 @@ export class AuthStore {
     const tokenHash = digest(token);
     const session = this.database.prepare('SELECT 1 FROM admin_sessions WHERE token_hash = ? AND expires_at > ?')
       .get(tokenHash, Date.now());
-    const admin = session && this.getAdmin();
-    return admin ? { tokenHash, setupRequired: admin.setup_code_hash !== null } : undefined;
+    return session ? { tokenHash } : undefined;
   }
 
   deleteSession(tokenHash: string) {
     this.database.prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(tokenHash);
-  }
-
-  async finishSetup(password: string, setupCode: string, token: string): Promise<string | undefined> {
-    const setupCodeHash = this.getAdmin()?.setup_code_hash;
-    if (!setupCodeHash || !timingSafeEqual(Buffer.from(digest(setupCode)), Buffer.from(setupCodeHash))) return;
-
-    const passwordHash = await hashPassword(password);
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
-      const session = this.getSession(token);
-      if (!session?.setupRequired) {
-        this.database.exec('ROLLBACK');
-        return;
-      }
-      this.database.prepare(`
-        UPDATE admin_credentials SET password_hash = ?, setup_code_hash = NULL WHERE username = ?
-      `).run(passwordHash, ADMIN_USERNAME);
-      this.database.exec('DELETE FROM admin_sessions');
-      const newToken = this.createSession();
-      this.database.exec('COMMIT');
-      return newToken;
-    } catch (error) {
-      this.database.exec('ROLLBACK');
-      throw error;
-    }
   }
 }

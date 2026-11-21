@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NeuroDatabase } from './db.ts';
 
-test('checkHealth reports connected SQLite database and accurate seeded agent counts', () => {
+test('checkHealth reports connected SQLite database and an empty workspace', () => {
   const neuroDb = new NeuroDatabase(':memory:');
   try {
     const health = neuroDb.checkHealth();
@@ -10,8 +10,8 @@ test('checkHealth reports connected SQLite database and accurate seeded agent co
     assert.equal(health.status, 'healthy');
     assert.equal(health.database, 'connected');
     assert.equal(health.storage, 'sqlite');
-    assert.equal(health.agentCount, 7);
-    assert.equal(health.activeAgentCount, 4);
+    assert.equal(health.agentCount, 0);
+    assert.equal(health.activeAgentCount, 0);
   } finally {
     neuroDb.db.close();
   }
@@ -32,13 +32,13 @@ test('checkHealth reflects agent count changes immediately after insert/delete',
       .run();
 
     const afterInsert = neuroDb.checkHealth();
-    assert.equal(afterInsert.agentCount, 8);
-    assert.equal(afterInsert.activeAgentCount, 5);
+    assert.equal(afterInsert.agentCount, 1);
+    assert.equal(afterInsert.activeAgentCount, 1);
 
     neuroDb.db.prepare('DELETE FROM connected_models WHERE id = ?').run('m_test');
     const afterDelete = neuroDb.checkHealth();
-    assert.equal(afterDelete.agentCount, 7);
-    assert.equal(afterDelete.activeAgentCount, 4);
+    assert.equal(afterDelete.agentCount, 0);
+    assert.equal(afterDelete.activeAgentCount, 0);
   } finally {
     neuroDb.db.close();
   }

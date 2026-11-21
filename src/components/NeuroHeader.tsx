@@ -49,8 +49,9 @@ export function NeuroHeader() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        if (!inputRef.current?.getClientRects().length) return;
         e.preventDefault();
-        inputRef.current?.focus();
+        inputRef.current.focus();
       } else if (e.key === 'Escape') {
         setIsStatusOpen(false);
       }
@@ -81,10 +82,10 @@ export function NeuroHeader() {
     : 'Checking...';
 
   return (
-    <header className="h-16 border-b border-[#222426] bg-[#141517]/80 backdrop-blur-md px-6 flex items-center justify-between gap-4 sticky top-0 z-30">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-[#e7e2d9] bg-[#fffdfa] px-3 backdrop-blur-md sm:gap-4 sm:px-6">
       {/* Search Input with ⌘ + F shortcut */}
       <div className="relative w-full max-w-md">
-        <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <Search className="w-4 h-4 text-[#777064] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
@@ -92,19 +93,19 @@ export function NeuroHeader() {
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="Search models, jobs, workflows..."
           aria-label="Global workspace search"
-          className="w-full pl-9 pr-14 py-2 text-xs rounded-xl border border-[#2A2B2E] bg-[#1D1E20] text-slate-100 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-400 font-sans transition-colors"
+          className="w-full rounded-xl border border-[#e7e2d9] bg-[#fffdfa] py-2 pr-8 pl-9 font-sans text-xs text-[#282820] transition-colors placeholder:text-[#777064] focus:border-[#08666c] focus:outline-none sm:pr-14"
         />
         {searchQuery ? (
           <button
             type="button"
             onClick={() => setSearchQuery('')}
             aria-label="Clear search"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-neutral-400 hover:text-white border border-[#333538] rounded px-1.5 py-0.5 bg-[#141517]"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-[#665f54] hover:text-[#282820] border border-[#d8d3ca] rounded px-1.5 py-0.5 bg-[#fffdfa]"
           >
             Esc
           </button>
         ) : (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 text-[10px] font-mono text-neutral-500 border border-[#333538] rounded px-1.5 py-0.5 bg-[#141517] pointer-events-none">
+          <div className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-[#d8d3ca] bg-[#fffdfa] px-1.5 py-0.5 font-mono text-xs text-[#777064] sm:flex">
             <span>⌘</span>
             <span>+</span>
             <span>F</span>
@@ -113,7 +114,7 @@ export function NeuroHeader() {
       </div>
 
       {/* Right Controls: System Status + Connect Model */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <div className="relative" ref={popoverRef}>
           <button
             type="button"
@@ -123,67 +124,67 @@ export function NeuroHeader() {
             data-testid="system-status-indicator"
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs transition-colors ${
               health === null && isCheckingHealth
-                ? 'bg-[#1D1E20] border-[#2D2F34] text-neutral-300'
+                ? 'bg-[#fffdfa] border-[#d8d3ca] text-[#4b4941]'
                 : isHealthy
-                ? 'bg-[#15221B] border-[#254432] text-emerald-300 hover:bg-[#1A2B22]'
-                : 'bg-rose-950/60 border-rose-800/70 text-rose-300 hover:bg-rose-950/80'
+                ? 'bg-[#fffdfa] border-[#166b66]/25 text-[#1f6b5f] hover:bg-[#e9f2eb]'
+                : 'bg-[#f9ece4] border-[#a44e32]/25 text-[#922d1d] hover:bg-[#f9ece4]'
             }`}
           >
             <span
               className={`w-2 h-2 rounded-full shrink-0 ${
                 health === null && isCheckingHealth
-                  ? 'bg-amber-400 animate-pulse'
+                  ? 'bg-[#c08a1e] animate-pulse'
                   : isHealthy
-                  ? 'bg-emerald-400'
-                  : 'bg-rose-500'
+                  ? 'bg-[#08666c]'
+                  : 'bg-[#b4442a]'
               }`}
             />
-            <span className="font-medium text-neutral-200 hidden sm:inline">System Status</span>
-            <span className="text-neutral-600 hidden sm:inline">·</span>
-            <span className="font-mono text-[11px]">
+            <span className="font-medium text-[#282820] hidden sm:inline">System Status</span>
+            <span className="text-[#777064] hidden sm:inline">·</span>
+            <span className="hidden font-mono text-xs sm:inline">
               {agentCount} {agentCount === 1 ? 'agent' : 'agents'}
             </span>
-            <span className="text-neutral-600 hidden md:inline">·</span>
-            <span className="font-mono text-[11px] hidden md:inline">{dbStateLabel}</span>
+            <span className="text-[#777064] hidden md:inline">·</span>
+            <span className="font-mono text-xs hidden md:inline">{dbStateLabel}</span>
           </button>
 
           {isStatusOpen && (
             <div
               role="region"
               aria-label="System Status Details"
-              className="absolute right-0 mt-2 w-72 rounded-2xl border border-[#2B2D31] bg-[#18191B] p-4 shadow-2xl space-y-3 z-50 text-xs"
+              className="fixed inset-x-3 top-14 z-50 space-y-3 rounded-2xl border border-[#e7e2d9] bg-[#fffdfa] p-4 text-xs shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-72"
             >
-              <div className="flex items-center justify-between pb-2.5 border-b border-[#25262A]">
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#e7e2d9]">
                 <div className="flex items-center gap-2">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isHealthy ? 'bg-emerald-400' : 'bg-rose-500'
+                      isHealthy ? 'bg-[#08666c]' : 'bg-[#b4442a]'
                     }`}
                   />
-                  <span className="font-semibold text-white">System Status</span>
+                  <span className="font-semibold text-[#282820]">System Status</span>
                 </div>
                 <span
-                  className={`font-mono text-[10px] uppercase px-2 py-0.5 rounded border ${
+                  className={`font-mono text-xs uppercase px-2 py-0.5 rounded border ${
                     isHealthy
-                      ? 'bg-emerald-950/70 border-emerald-800/60 text-emerald-300'
-                      : 'bg-rose-950/70 border-rose-800/60 text-rose-300'
+                      ? 'bg-[#e9f2eb] border-[#166b66]/25 text-[#1f6b5f]'
+                      : 'bg-[#f9ece4] border-[#a44e32]/25 text-[#922d1d]'
                   }`}
                 >
                   {isHealthy ? 'Healthy' : 'Degraded'}
                 </span>
               </div>
 
-              <div className="space-y-2 text-[11px]">
+              <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-neutral-400 flex items-center gap-1.5">
-                    <Database className="w-3.5 h-3.5 text-neutral-500" />
+                  <span className="text-[#665f54] flex items-center gap-1.5">
+                    <Database className="w-3.5 h-3.5 text-[#777064]" />
                     Database ({health?.storage || 'sqlite'})
                   </span>
                   <span
                     className={`font-mono font-semibold ${
                       health?.database === 'connected' && !healthError
-                        ? 'text-emerald-400'
-                        : 'text-rose-400'
+                        ? 'text-[#1f6b5f]'
+                        : 'text-[#922d1d]'
                     }`}
                   >
                     {healthError ? 'disconnected' : health?.database ?? 'checking'}
@@ -191,31 +192,31 @@ export function NeuroHeader() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-neutral-400 flex items-center gap-1.5">
-                    <Bot className="w-3.5 h-3.5 text-neutral-500" />
+                  <span className="text-[#665f54] flex items-center gap-1.5">
+                    <Bot className="w-3.5 h-3.5 text-[#777064]" />
                     Connected Agents
                   </span>
-                  <span className="font-mono text-white font-semibold">
+                  <span className="font-mono text-[#282820] font-semibold">
                     {agentCount} total ({health?.activeAgentCount ?? 0} active)
                   </span>
                 </div>
 
                 {typeof health?.uptimeSeconds === 'number' && (
                   <div className="flex items-center justify-between">
-                    <span className="text-neutral-400">Server Uptime</span>
-                    <span className="font-mono text-neutral-300">{health.uptimeSeconds}s</span>
+                    <span className="text-[#665f54]">Server Uptime</span>
+                    <span className="font-mono text-[#4b4941]">{health.uptimeSeconds}s</span>
                   </div>
                 )}
 
                 {healthError && (
-                  <div className="p-2 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 font-mono text-[10px]">
+                  <div className="p-2 rounded-lg bg-[#f9ece4] border border-[#a44e32]/25 text-[#922d1d] font-mono text-xs">
                     {healthError}
                   </div>
                 )}
               </div>
 
-              <div className="pt-2 border-t border-[#25262A] flex items-center justify-between">
-                <span className="text-[10px] font-mono text-neutral-500">
+              <div className="pt-2 border-t border-[#e7e2d9] flex items-center justify-between">
+                <span className="text-xs font-mono text-[#777064]">
                   {health?.checkedAt
                     ? `Checked ${new Date(health.checkedAt).toLocaleTimeString([], {
                         hour: '2-digit',
@@ -228,7 +229,7 @@ export function NeuroHeader() {
                   type="button"
                   onClick={() => void fetchHealth()}
                   disabled={isCheckingHealth}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#232429] hover:bg-[#2D2F35] text-neutral-200 text-[11px] font-medium transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#f2eee6] hover:bg-[#ede9e0] text-[#282820] text-xs font-medium transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3 h-3 ${isCheckingHealth ? 'animate-spin' : ''}`} />
                   <span>Refresh</span>
@@ -244,10 +245,12 @@ export function NeuroHeader() {
             setEditingModel(null);
             setIsConnectModalOpen(true);
           }}
-          className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-neutral-950 bg-white hover:bg-neutral-100 rounded-full transition-all shadow-sm"
+          aria-label="Connect Agent"
+          title="Connect Agent"
+          className="flex items-center gap-2 rounded-full bg-[#262922] p-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#3b4236] sm:px-3.5 sm:py-1.5"
         >
           <Plug className="w-3.5 h-3.5" />
-          <span>Connect Model</span>
+          <span className="hidden sm:inline">Connect Agent</span>
         </button>
       </div>
     </header>

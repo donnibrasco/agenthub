@@ -1,0 +1,4 @@
+node_modules/
+release/
+# Copied from ../connector at build time
+connector.mjs

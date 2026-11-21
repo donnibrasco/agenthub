@@ -83,38 +83,37 @@ export function JobsManagementView() {
   };
 
   return (
-    <div className="space-y-6">
-      
+    <div className="min-w-0 space-y-6">
       {/* ─── Top Header Banner ─── */}
-      <div className="rounded-3xl bg-[#18191B] border border-[#27282C] p-6 space-y-4 shadow-sm">
+      <div className="rounded-3xl bg-[#fffdfa] border border-[#e7e2d9] p-6 space-y-4 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-orange-600/20 text-orange-400 border border-orange-500/30">
+              <span className="p-1.5 rounded-lg bg-[#e9f2eb] text-[#08666c] border border-[#166b66]/25">
                 <Briefcase className="w-4 h-4" />
               </span>
-              <h1 className="text-xl font-bold text-white tracking-tight">
-                Centralized Job & Workload Orchestrator
+              <h1 className="text-3xl font-semibold tracking-tight text-[#282820] sm:text-4xl">
+                Jobs & Tasks
               </h1>
             </div>
-            <p className="text-xs text-neutral-400 max-w-2xl leading-relaxed">
-              Dispatch queued engineering and operational tasks to idle agents to eliminate downtime. Assign to autonomous agents or human collaborators with real-time telemetry tracking.
+            <p className="mt-1.5 max-w-2xl text-sm text-[#665f54] sm:text-base">
+              Queue work, assign it to a connected agent or teammate, and track progress.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
               onClick={handleAutoAssignAll}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs tracking-wide transition-colors shadow-md"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#08666c] hover:bg-[#0a7a80] text-white font-semibold text-xs tracking-wide transition-colors shadow-md"
               title="Automatically match all queued jobs with available idle connected models"
             >
               <Zap className="w-4 h-4 fill-white" />
-              <span>Auto-Assign to Idle Models</span>
+              <span>Auto-assign queued jobs</span>
             </button>
 
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-neutral-100 text-neutral-950 font-bold text-xs tracking-wide transition-colors shadow-md"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#262922] hover:bg-[#3b4236] text-white font-semibold text-xs tracking-wide transition-colors shadow-md"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Create Job</span>
@@ -124,51 +123,51 @@ export function JobsManagementView() {
 
         {/* Live Notification Bar */}
         {assignmentNotice && (
-          <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-xs flex items-center justify-between animate-in fade-in duration-200 font-mono">
+          <div className="p-3 rounded-xl bg-[#e9f2eb] border border-[#166b66]/25 text-[#1f6b5f] text-sm flex items-center justify-between animate-in fade-in duration-200" role="status">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-[#1f6b5f]" />
               <span>{assignmentNotice}</span>
             </div>
-            <button onClick={() => setAssignmentNotice(null)} className="text-neutral-400 hover:text-white">✕</button>
+            <button type="button" aria-label="Dismiss" onClick={() => setAssignmentNotice(null)} className="rounded p-1 text-[#665f54] hover:bg-[#dfece4] hover:text-[#282820]">✕</button>
           </div>
         )}
 
         {/* ─── Fleet Utilization & Workload Stats ─── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[#25262A]">
-          <div className="p-3 rounded-2xl bg-[#121315] border border-[#232427]">
-            <div className="text-[11px] font-mono text-neutral-400 uppercase tracking-wider">Total Jobs</div>
-            <div className="text-xl font-bold text-white mt-1">{jobs.length}</div>
-            <div className="text-[10px] text-neutral-500 mt-0.5">Centralized queue</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[#e7e2d9]">
+          <div className="p-3 rounded-2xl bg-[#fffdfa] border border-[#e7e2d9]">
+            <div className="text-xs text-[#665f54] font-medium">Total Jobs</div>
+            <div className="text-xl font-semibold text-[#282820] mt-1">{jobs.length}</div>
+            <div className="text-xs text-[#777064] mt-0.5">Centralized queue</div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-[#121315] border border-[#232427]">
-            <div className="text-[11px] font-mono text-neutral-400 uppercase tracking-wider">In Progress</div>
-            <div className="text-xl font-bold text-emerald-400 mt-1">
+          <div className="p-3 rounded-2xl bg-[#fffdfa] border border-[#e7e2d9]">
+            <div className="text-xs text-[#665f54] font-medium">In Progress</div>
+            <div className="text-xl font-semibold text-[#1f6b5f] mt-1">
               {jobs.filter(j => j.status === 'in_progress').length}
             </div>
-            <div className="text-[10px] text-neutral-500 mt-0.5">Active execution</div>
+            <div className="text-xs text-[#777064] mt-0.5">Active execution</div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-[#121315] border border-[#232427]">
-            <div className="text-[11px] font-mono text-neutral-400 uppercase tracking-wider">Idle Agents Ready</div>
-            <div className="text-xl font-bold text-amber-400 mt-1">
+          <div className="p-3 rounded-2xl bg-[#fffdfa] border border-[#e7e2d9]">
+            <div className="text-xs text-[#665f54] font-medium">Idle Agents Ready</div>
+            <div className="text-xl font-semibold text-[#8a6418] mt-1">
               {fleetStats.idleCount}
             </div>
-            <div className="text-[10px] text-neutral-500 mt-0.5">Available to assign</div>
+            <div className="text-xs text-[#777064] mt-0.5">Available to assign</div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-[#121315] border border-[#232427]">
-            <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 uppercase tracking-wider">
+          <div className="p-3 rounded-2xl bg-[#fffdfa] border border-[#e7e2d9]">
+            <div className="flex items-center justify-between text-xs text-[#665f54] font-medium">
               <span>Fleet Utilization</span>
-              <span className="text-white font-bold">{fleetStats.utilizationRate}%</span>
+              <span className="text-[#282820] font-semibold">{fleetStats.utilizationRate}%</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-[#202124] overflow-hidden mt-2">
+            <div className="w-full h-2 rounded-full bg-[#f2eee6] overflow-hidden mt-2">
               <div 
-                className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-500"
+                className="h-full bg-[#08666c] transition-all duration-500"
                 style={{ width: `${fleetStats.utilizationRate}%` }}
               />
             </div>
-            <div className="text-[10px] text-neutral-500 mt-1">
+            <div className="text-xs text-[#777064] mt-1">
               {fleetStats.activeCount} of {fleetStats.total} agents active
             </div>
           </div>
@@ -179,24 +178,24 @@ export function JobsManagementView() {
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-[#777064] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             placeholder="Search jobs by title, payload or assignee..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#18191B] border border-[#2A2B2F] text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500 font-sans"
+            className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#fffdfa] border border-[#e7e2d9] text-xs text-[#282820] placeholder-[#777064] focus:outline-none focus:border-[#08666c] font-sans"
           />
         </div>
 
         {/* Status Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 font-medium text-xs">
+        <div className="-mx-1 flex min-w-0 items-center gap-1.5 overflow-x-auto px-1 pb-1 md:pb-0 font-medium text-xs">
           {[
-            { id: 'all', label: 'All Jobs' },
-            { id: 'queued', label: 'Queued (Needs Assignee)' },
-            { id: 'in_progress', label: 'In Progress' },
-            { id: 'agent', label: 'Assigned to Models' },
-            { id: 'user', label: 'Assigned to Users' },
+            { id: 'all', label: 'All jobs' },
+            { id: 'queued', label: 'Needs assignee' },
+            { id: 'in_progress', label: 'In progress' },
+            { id: 'agent', label: 'Assigned to agents' },
+            { id: 'user', label: 'Assigned to people' },
             { id: 'completed', label: 'Completed' }
           ].map(tab => (
             <button
@@ -204,8 +203,8 @@ export function JobsManagementView() {
               onClick={() => setFilterStatus(tab.id)}
               className={`px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
                 filterStatus === tab.id
-                  ? 'bg-neutral-200 text-neutral-900 font-bold shadow-sm'
-                  : 'bg-[#18191B] text-neutral-400 hover:text-white border border-[#2A2B2F]'
+                  ? 'bg-[#08666c] text-white font-semibold shadow-sm'
+                  : 'bg-[#fffdfa] text-[#665f54] hover:text-[#282820] border border-[#e7e2d9]'
               }`}
             >
               {tab.label}
@@ -217,12 +216,12 @@ export function JobsManagementView() {
       {/* ─── Jobs Feed & Assignment Cards ─── */}
       <div className="space-y-3">
         {filteredJobs.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-[#18191B] border border-[#27282C] space-y-3">
-            <Briefcase className="w-10 h-10 text-neutral-500 mx-auto" />
-            <p className="text-sm font-semibold text-neutral-300">No jobs match your search or filter.</p>
+          <div className="p-12 text-center rounded-2xl bg-[#fffdfa] border border-[#e7e2d9] space-y-3">
+            <Briefcase className="w-10 h-10 text-[#777064] mx-auto" />
+            <p className="text-sm font-semibold text-[#4b4941]">No jobs match your search or filter.</p>
             <button
               onClick={() => { setSearchQuery(''); setFilterStatus('all'); }}
-              className="text-xs text-orange-400 hover:underline"
+              className="text-xs text-[#08666c] hover:underline"
             >
               Reset filters
             </button>
@@ -235,45 +234,44 @@ export function JobsManagementView() {
             return (
               <div
                 key={job.id}
-                className="group relative p-4 rounded-2xl bg-[#18191B] hover:bg-[#1D1E22] border border-[#27282C] hover:border-neutral-700 transition-all space-y-3"
+                className="group relative min-w-0 p-4 sm:p-5 rounded-2xl bg-[#fffdfa] border border-[#e7e2d9] hover:border-[#d8d3ca] transition-all space-y-3"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {/* Priority Flair */}
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-                        job.priority === 'critical' ? 'bg-red-950/80 text-red-400 border border-red-800/60' :
-                        job.priority === 'high' ? 'bg-amber-950/80 text-amber-400 border border-amber-800/60' :
-                        job.priority === 'medium' ? 'bg-blue-950/80 text-blue-400 border border-blue-800/60' :
-                        'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        job.priority === 'critical' ? 'bg-[#f9ece4] text-[#922d1d] border border-[#a44e32]/25' :
+                        job.priority === 'high' ? 'bg-[#f7eed7] text-[#8a6418] border border-[#987529]/25' :
+                        job.priority === 'medium' ? 'bg-[#e8eef6] text-[#2f5d8a] border border-[#2f5d8a]/25' :
+                        'bg-[#ede9e0] text-[#665f54] border border-[#d8d3ca]'
                       }`}>
                         {job.priority}
                       </span>
 
                       {/* Status */}
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase ${
-                        job.status === 'in_progress' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60' :
-                        job.status === 'queued' ? 'bg-amber-950/80 text-amber-400 border border-amber-800/60' :
-                        job.status === 'completed' ? 'bg-blue-950/80 text-blue-300 border border-blue-800/60' :
-                        'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        job.status === 'in_progress' ? 'bg-[#e9f2eb] text-[#1f6b5f] border border-[#166b66]/25' :
+                        job.status === 'failed' ? 'bg-[#f9ece4] text-[#922d1d] border border-[#a44e32]/25' :
+                        job.status === 'paused' ? 'bg-[#f7eed7] text-[#6d551d] border border-[#987529]/25' :
+                        job.status === 'queued' ? 'bg-[#f7eed7] text-[#8a6418] border border-[#987529]/25' :
+                        job.status === 'completed' ? 'bg-[#e8eef6] text-[#2f5d8a] border border-[#2f5d8a]/25' :
+                        'bg-[#ede9e0] text-[#665f54] border border-[#d8d3ca]'
                       }`}>
                         {job.status.replace('_', ' ')}
                       </span>
 
                       {/* Category */}
-                      <span className="px-2 py-0.5 rounded text-[10px] bg-[#242528] text-neutral-300 border border-[#34363C]">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs bg-[#f2eee6] text-[#4b4941] border border-[#d8d3ca]">
                         {job.category}
                       </span>
 
-                      <span className="text-xs text-neutral-500 font-mono">
-                        Target: {job.deadline || 'ASAP'}
+                      <span className="text-xs text-[#777064]">
+                        Due {job.deadline || 'ASAP'}
                       </span>
                     </div>
 
-                    <h3 
-                      onClick={() => setActiveJobDetails(job)}
-                      className="text-sm sm:text-base font-bold text-white hover:text-orange-400 cursor-pointer transition-colors"
-                    >
+                    <h3 className="break-words text-base font-semibold text-[#282820]">
                       {job.title}
                     </h3>
                   </div>
@@ -281,40 +279,40 @@ export function JobsManagementView() {
                   {/* Right Action: Inspect Details */}
                   <button
                     onClick={() => setActiveJobDetails(job)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#242528] hover:bg-[#2F3035] text-neutral-200 text-xs font-semibold transition-colors self-start sm:self-auto shrink-0"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f2eee6] hover:bg-[#ede9e0] text-[#282820] text-xs font-semibold transition-colors self-start sm:self-auto shrink-0"
                   >
                     <span>View Details</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
+                    <ChevronRight className="w-3.5 h-3.5 text-[#665f54]" />
                   </button>
                 </div>
 
-                <p className="text-xs text-neutral-400 leading-relaxed font-sans line-clamp-2">
+                <p className="text-sm text-[#665f54] leading-relaxed line-clamp-2 break-words">
                   {job.description}
                 </p>
 
                 {/* Assignment & Execution Row */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-3 border-t border-[#252629] text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#e7e2d9] text-xs">
                   
                   {/* Assignee Box */}
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[11px] font-mono text-neutral-500">Assignee:</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="text-xs text-[#777064]">Assignee</span>
 
                     {job.assignedType === 'agent' ? (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-950/50 border border-orange-800/50 text-orange-300 font-medium">
-                        <Bot className="w-3.5 h-3.5 text-orange-400" />
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#e9f2eb] border border-[#166b66]/25 text-[#08666c] font-medium">
+                        <Bot className="w-3.5 h-3.5 text-[#08666c]" />
                         <span>{job.assignedToName}</span>
-                        <span className="text-[10px] text-emerald-400 font-mono">(Agent Active)</span>
+                        
                       </div>
                     ) : job.assignedType === 'user' ? (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-950/50 border border-blue-800/50 text-blue-300 font-medium">
-                        <User className="w-3.5 h-3.5 text-blue-400" />
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#e8eef6] border border-[#2f5d8a]/25 text-[#2f5d8a] font-medium">
+                        <User className="w-3.5 h-3.5 text-[#2f5d8a]" />
                         <span>{job.assignedToName}</span>
-                        <span className="text-[10px] text-neutral-400 font-mono">({job.assignedToRole || 'User'})</span>
+                        <span className="text-xs text-[#665f54]">· {job.assignedToRole || 'User'}</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-amber-950/60 border border-amber-800/50 text-amber-400">
-                          ⚠ Unassigned Queue
+                        <span className="px-2.5 py-0.5 rounded-full text-xs bg-[#f7eed7] border border-[#987529]/25 text-[#6d551d]">
+                          Unassigned
                         </span>
 
                         {/* Quick Auto-Assign Button */}
@@ -326,19 +324,19 @@ export function JobsManagementView() {
                               setTimeout(() => setAssignmentNotice(null), 3000);
                             }
                           }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-[11px] transition-colors"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#08666c] hover:bg-[#0a7a80] text-white font-semibold text-xs transition-colors"
                           title="Assign to the best matching idle agent"
                         >
                           <Zap className="w-3 h-3 fill-white" />
-                          <span>Auto-Assign to Idle Agent</span>
+                          <span>Auto-assign</span>
                         </button>
                       </div>
                     )}
                   </div>
 
                   {/* Manual Quick Reassign Dropdown */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-neutral-500 hidden sm:inline">Assign to:</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <label htmlFor={`assign-${job.id}`} className="sr-only">Change assignee for {job.title}</label>
                     <select
                       onChange={e => {
                         const val = e.target.value;
@@ -351,29 +349,30 @@ export function JobsManagementView() {
                         }
                         e.target.value = '';
                       }}
+                      id={`assign-${job.id}`}
                       defaultValue=""
-                      className="px-2.5 py-1 rounded-lg bg-[#202125] border border-[#2E3035] text-white text-[11px] focus:outline-none focus:border-orange-500 font-sans cursor-pointer"
+                      className="min-w-0 max-w-full px-2.5 py-1 rounded-lg bg-[#f2eee6] border border-[#d8d3ca] text-[#282820] text-xs focus:outline-none focus:border-[#08666c] font-sans cursor-pointer"
                     >
-                      <option value="" disabled>Change Assignee...</option>
-                      <optgroup label="Connected Models (Awakens Idle)">
+                      <option value="" disabled>Change assignee…</option>
+                      <optgroup label="Connected agents">
                         {agents.map(a => (
                           <option key={a.id} value={`agent:${a.id}`}>
-                            🤖 {a.name} [{a.status}]
+                            {a.name} ({a.status})
                           </option>
                         ))}
                       </optgroup>
                       <optgroup label="Team Members">
                         {teamMembers.map(u => (
                           <option key={u.id} value={`user:${u.id}`}>
-                            👤 {u.name} ({u.role})
+                            {u.name} ({u.role})
                           </option>
                         ))}
                       </optgroup>
                     </select>
 
-                    <div className="flex items-center gap-1 text-[11px] font-mono text-neutral-400 ml-2">
-                      <Database className="w-3 h-3 text-neutral-500" />
-                      <span>{job.estimatedTokens} tokens</span>
+                    <div className="flex items-center gap-1 whitespace-nowrap text-xs text-[#665f54]">
+                      <Database className="w-3 h-3 text-[#777064]" />
+                      <span className="tabular-nums">{job.estimatedTokens.toLocaleString()} tokens</span>
                     </div>
                   </div>
 

@@ -5,6 +5,7 @@ data
 .playwright-cli
 .env
 *.png
+*.zip
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

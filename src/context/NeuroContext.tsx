@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import type { AgentStep } from '../lib/agentSteps';
+import type { JobAttachment } from '../lib/attachments';
 import { findBestIdleAgent } from '../lib/jobAssignment';
 import {
   ModelRuntime,
   ModelProvider,
   ModelConnectionPayload,
-  normalizeEndpointDomain,
-  generateConnectionFingerprint,
+  EndpointProbeResult,
 } from '../lib/modelConnection';
 import {
   FrictionSignal,
@@ -56,6 +57,7 @@ export interface RecentActivity {
   textColorClass: string;
   tagColorClass: string;
   response: string;
+  createdAt?: string;
 }
 
 export interface WorkflowItem {
@@ -71,10 +73,14 @@ export interface JobLog {
   timestamp: string;
   message: string;
   level: 'info' | 'warn' | 'success';
+  role?: 'user' | 'agent';
+  author?: string;
+  steps?: AgentStep[];
 }
 
 export interface NeuroJob {
   id: string;
+  attachments?: JobAttachment[];
   title: string;
   description: string;
   status: 'queued' | 'in_progress' | 'completed' | 'failed' | 'paused';
@@ -97,9 +103,7 @@ export interface NeuroJob {
 export interface TeamMember {
   id: string;
   name: string;
-  email: string;
   role: string;
-  avatar: string;
 }
 
 export interface ImproveFeedbackEntry {
@@ -114,14 +118,9 @@ export interface DeployInfo {
   storageMode: string;
 }
 
-export interface EndpointProbeResult {
-  reachable: boolean;
-  httpStatus?: number;
-  latencyMs: number;
-  message: string;
-}
-
 export type ActiveTab =
+  | 'timeline'
+  | 'new-chat'
   | 'dashboards'
   | 'agents'
   | 'jobs'
@@ -144,8 +143,8 @@ interface NeuroContextType {
   setEditingModel: (model: NeuroAgent | null) => void;
   deployInfo: DeployInfo;
   refreshWorkspace: () => Promise<void>;
-  probeEndpoint: (payload: { endpointUrl: string; provider: string; authToken?: string }) => Promise<EndpointProbeResult>;
-  connectModel: (payload: ModelConnectionPayload) => Promise<NeuroAgent | null>;
+  probeEndpoint: (payload: { endpointUrl: string; provider: string; authToken?: string; savedModelId?: string }) => Promise<EndpointProbeResult>;
+  connectModel: (payload: ModelConnectionPayload) => Promise<void>;
   updateModelConnection: (id: string, payload: ModelConnectionPayload) => Promise<void>;
   pingConnectedModel: (id: string) => Promise<EndpointProbeResult>;
   disconnectModel: (id: string) => Promise<void>;
@@ -160,7 +159,8 @@ interface NeuroContextType {
   assignJob: (jobId: string, assignedType: 'agent' | 'user', targetId: string, targetName: string) => Promise<void>;
   autoAssignJobToIdleAgent: (jobId: string) => Promise<{ success: boolean; agentName?: string }>;
   autoAssignAllQueuedJobs: () => Promise<number>;
-  createJob: (jobData: Partial<NeuroJob>) => Promise<void>;
+  createJob: (jobData: Partial<NeuroJob> & { attachmentIds?: string[] }) => Promise<string | undefined>;
+  sendJobMessage: (jobId: string, message?: string) => Promise<void>;
   updateJobStatus: (jobId: string, status: NeuroJob['status']) => Promise<void>;
   frictionSignals: FrictionSignal[];
   signalClusters: SignalCluster[];
@@ -169,7 +169,7 @@ interface NeuroContextType {
   dailySignalSeries: DailySignalPoint[];
   feedbackLog: ImproveFeedbackEntry[];
   resolveImprovement: (proposalId: string, decision: 'applied' | 'dismissed') => Promise<void>;
-  scanModelsForFriction: () => Promise<number>;
+  refreshImprovements: () => Promise<void>;
   resetImprovementsBaseline: () => Promise<void>;
   submitImproveFeedback: (message: string) => Promise<void>;
 }
@@ -177,7 +177,7 @@ interface NeuroContextType {
 const NeuroContext = createContext<NeuroContextType | null>(null);
 
 export function NeuroProvider({ children }: { children: ReactNode }) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboards');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('timeline');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeLaunchAgent, setActiveLaunchAgent] = useState<NeuroAgent | null>(null);
   const [activeJobDetails, setActiveJobDetails] = useState<NeuroJob | null>(null);
@@ -231,7 +231,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
       if (data.deployInfo) setDeployInfo(data.deployInfo);
       if (data.improvements) applyImprovementsBundle(data.improvements);
     } catch (err) {
-      console.error('Failed to load NeuroNest SQLite workspace:', err);
+      console.error('Failed to load AgentHub workspace:', err);
     }
   }, []);
 
@@ -239,14 +239,11 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     void refreshWorkspace();
   }, [refreshWorkspace]);
 
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
-
   const probeEndpoint = async (payload: {
     endpointUrl: string;
     provider: string;
     authToken?: string;
+    savedModelId?: string;
   }): Promise<EndpointProbeResult> => {
     const res = await workspaceFetch('/api/probe', {
       method: 'POST',
@@ -254,63 +251,29 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      return { reachable: false, latencyMs: 0, message: 'Probe request failed' };
+      const data = await res.json().catch(() => null);
+      return { reachable: false, latencyMs: 0, message: data?.error || 'Probe request failed.' };
     }
     return res.json();
   };
 
-  const connectModel = async (payload: ModelConnectionPayload): Promise<NeuroAgent | null> => {
-    const res = await workspaceFetch('/api/models', {
-      method: 'POST',
+  const saveModelConnection = async (payload: ModelConnectionPayload, id?: string) => {
+    const res = await workspaceFetch(id ? `/api/models/${encodeURIComponent(id)}` : '/api/models', {
+      method: id ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.model) {
-      setAgents(prev => [data.model, ...prev]);
-      await refreshWorkspace();
-      return data.model;
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.model) {
+      const details = Object.values(data?.errors ?? {}).join(' ');
+      throw new Error(details || data?.error || 'Could not save the model connection.');
     }
-    return null;
+    setAgents(prev => id ? prev.map(model => model.id === id ? data.model : model) : [data.model, ...prev]);
+    await refreshWorkspace();
   };
 
-  const updateModelConnection = async (id: string, payload: ModelConnectionPayload) => {
-    const domain = normalizeEndpointDomain(payload.endpointUrl);
-    const fingerprint = generateConnectionFingerprint(`${payload.endpointUrl}|${payload.modelId}`);
-
-    setAgents(prev =>
-      prev.map(a =>
-        a.id === id
-          ? {
-              ...a,
-              name: payload.name.trim(),
-              model: payload.modelId.trim(),
-              description: payload.description?.trim() || a.description,
-              category: payload.category,
-              endpointUrl: payload.endpointUrl.trim(),
-              runtime: payload.runtime,
-              provider: payload.provider,
-              domain,
-              e2eeFingerprint: fingerprint,
-              lastPingAt: 'Updated just now',
-            }
-          : a
-      )
-    );
-
-    const res = await workspaceFetch(`/api/models/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.model) {
-        setAgents(prev => prev.map(a => (a.id === id ? data.model : a)));
-      }
-    }
-  };
+  const connectModel = (payload: ModelConnectionPayload) => saveModelConnection(payload);
+  const updateModelConnection = (id: string, payload: ModelConnectionPayload) => saveModelConnection(payload, id);
 
   const pingConnectedModel = async (id: string): Promise<EndpointProbeResult> => {
     const res = await workspaceFetch(`/api/models/${encodeURIComponent(id)}/ping`, {
@@ -327,11 +290,11 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const disconnectModel = async (id: string) => {
+    const res = await workspaceFetch(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Could not disconnect the model.');
     setAgents(prev => prev.filter(a => a.id !== id));
     if (activeLaunchAgent?.id === id) setActiveLaunchAgent(null);
     if (editingModel?.id === id) setEditingModel(null);
-
-    await workspaceFetch(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
   };
 
   const toggleAgentStatus = async (agentId: string) => {
@@ -353,28 +316,24 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
   };
 
   const launchAgentPrompt = async (agentId: string, promptText: string): Promise<string> => {
-    const target = agents.find(a => a.id === agentId) || agents[0];
+    const target = agents.find(a => a.id === agentId);
+    if (!target) throw new Error('This model connection is no longer available.');
     const res = await workspaceFetch(`/api/models/${encodeURIComponent(agentId)}/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ promptText }),
     });
 
-    if (!res.ok) {
-      return `HTTP ${res.status} error calling backend proxy.`;
-    }
-
-    const data = await res.json();
-    if (data.model) {
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || `Model request failed (HTTP ${res.status}).`);
+    if (data?.model) {
       setAgents(prev => prev.map(a => (a.id === agentId ? data.model : a)));
     }
 
-    if (data.ok) {
-      await refreshWorkspace();
-      return `Live Response from ${target.name} (${target.model} · ${data.latencyMs}ms · ${data.tokensUsed} tokens):\n\n${data.output}`;
-    }
-
-    return `Upstream Endpoint Notice (${target.endpointUrl || target.domain}):\n${data.error}\n\nVerify the endpoint URL/API key in [ manage connection ] or ensure your tunnel/VPS can reach this host.`;
+    if (!data?.ok) throw new Error(data?.error || 'The model did not complete the request.');
+    await refreshWorkspace();
+    const usage = data.tokensUsed ? ` · ${data.tokensUsed} tokens` : '';
+    return `${target.model} · ${data.latencyMs} ms${usage}\n\n${data.output}`;
   };
 
   const voteAgent = async (agentId: string, direction: 'up' | 'down') => {
@@ -490,7 +449,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     return Number(data.assignedCount || 0);
   };
 
-  const createJob = async (jobData: Partial<NeuroJob>) => {
+  const createJob = async (jobData: Partial<NeuroJob> & { attachmentIds?: string[] }) => {
     const res = await workspaceFetch('/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -500,7 +459,23 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (data.jobs) setJobs(data.jobs);
       if (data.models) setAgents(data.models);
+      return typeof data.jobId === 'string' ? data.jobId : undefined;
     }
+  };
+
+  const sendJobMessage = async (jobId: string, message?: string) => {
+    const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.jobs) {
+      await refreshWorkspace();
+      throw new Error(data?.error || 'The agent could not complete the request.');
+    }
+    setJobs(data.jobs);
+    if (data.models) setAgents(data.models);
   };
 
   const updateJobStatus = async (jobId: string, status: NeuroJob['status']) => {
@@ -532,13 +507,11 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const scanModelsForFriction = async (): Promise<number> => {
-    const res = await workspaceFetch('/api/improvements/scan', { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.improvements) applyImprovementsBundle(data.improvements);
-    }
-    return 1;
+  const refreshImprovements = async () => {
+    const res = await workspaceFetch('/api/improvements');
+    if (!res.ok) throw new Error('Could not refresh telemetry.');
+    const data = await res.json();
+    applyImprovementsBundle(data.improvements);
   };
 
   const resetImprovementsBaseline = async () => {
@@ -604,6 +577,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
         autoAssignJobToIdleAgent,
         autoAssignAllQueuedJobs,
         createJob,
+        sendJobMessage,
         updateJobStatus,
         frictionSignals,
         signalClusters,
@@ -612,7 +586,7 @@ export function NeuroProvider({ children }: { children: ReactNode }) {
         dailySignalSeries,
         feedbackLog,
         resolveImprovement,
-        scanModelsForFriction,
+        refreshImprovements,
         resetImprovementsBaseline,
         submitImproveFeedback,
       }}

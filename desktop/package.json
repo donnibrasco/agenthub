@@ -1,0 +1,47 @@
+{
+  "name": "agenthub-desktop",
+  "productName": "AgentHub",
+  "version": "0.1.0",
+  "description": "AgentHub for your desktop: one hub for all your AI agents, with Codex and Claude Code running on this computer.",
+  "author": "AgenticProcess",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "prepare-connector": "node -e \"require('fs').copyFileSync('../connector/agenthub-connector.mjs','connector.mjs')\"",
+    "start": "npm run prepare-connector && electron .",
+    "dist:mac": "npm run prepare-connector && electron-builder --mac --publish never",
+    "dist:win": "npm run prepare-connector && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "io.agenticprocess.agenthub",
+    "productName": "AgentHub",
+    "copyright": "AgenticProcess",
+    "directories": { "output": "release", "buildResources": "assets" },
+    "files": ["main.mjs", "preload.cjs", "connector.mjs", "assets/**/*", "package.json"],
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["universal"] }],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "identity": null,
+      "minimumSystemVersion": "12.0"
+    },
+    "dmg": { "artifactName": "AgentHub-mac.dmg", "title": "AgentHub" },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "artifactName": "AgentHub-windows-setup.exe",
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "AgentHub"
+    }
+  }
+}

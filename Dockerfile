@@ -7,6 +7,8 @@ RUN npm ci
 
 COPY . .
 RUN npm run build
+# Fail the build (not the live site) if Node can't load a server module.
+RUN node scripts/check-server-modules.mjs
 
 RUN mkdir -p /data
 ENV NODE_ENV=production

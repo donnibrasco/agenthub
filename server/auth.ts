@@ -1,6 +1,9 @@
+import { randomBytes } from 'node:crypto';
 import express, { type Express, type Request, type RequestHandler, type Response } from 'express';
 import { ADMIN_USERNAME, AuthStore, matchPassword, SESSION_LIFETIME_MS } from './authStore.ts';
 import { authPage } from './authPage.ts';
+import { landingPage } from './landingPage.ts';
+import { latestDesktopRelease } from './releases.ts';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
@@ -8,9 +11,9 @@ const MAX_ATTEMPTS = 8;
 const MAX_TRACKED_CLIENTS = 4096;
 const MAX_CONCURRENT_ATTEMPTS = 4;
 
-function render(res: Response, setup: boolean, status = 200, error?: string) {
+function render(res: Response, status = 200, error?: string) {
   res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
-  res.status(status).type('html').send(authPage(setup, error));
+  res.status(status).type('html').send(authPage(error));
 }
 
 export function installAuth(app: Express, store: AuthStore, origin: URL) {
@@ -28,7 +31,7 @@ export function installAuth(app: Express, store: AuthStore, origin: URL) {
   };
   const sameOrigin: RequestHandler = (req, res, next) => {
     if (req.get('origin') !== origin.origin) {
-      res.status(403).json({ error: 'This request must come from NeuroNest.' });
+      res.status(403).json({ error: 'This request must come from AgentHub.' });
       return;
     }
     next();
@@ -42,21 +45,21 @@ export function installAuth(app: Express, store: AuthStore, origin: URL) {
     }
   }, ATTEMPT_WINDOW_MS).unref();
 
-  function limitAttempts(setup: boolean, handler: (req: Request, res: Response) => Promise<void>): RequestHandler {
+  function limitAttempts(handler: (req: Request, res: Response) => Promise<void>): RequestHandler {
     return (req, res, next) => {
       const now = Date.now();
       const ip = req.ip || 'unknown';
       let attempt = attempts.get(ip);
       if (!attempt || attempt.expiresAt <= now) {
         if (!attempt && attempts.size >= MAX_TRACKED_CLIENTS) {
-          render(res, setup, 429, 'Too many attempts. Try again later.');
+          render(res, 429, 'Too many attempts. Try again later.');
           return;
         }
         attempt = { count: 0, expiresAt: now + ATTEMPT_WINDOW_MS };
         attempts.set(ip, attempt);
       }
       if (attempt.count >= MAX_ATTEMPTS || activeAttempts >= MAX_CONCURRENT_ATTEMPTS) {
-        render(res, setup, 429, 'Too many attempts. Try again later.');
+        render(res, 429, 'Too many attempts. Try again later.');
         return;
       }
       ++attempt.count;
@@ -71,51 +74,24 @@ export function installAuth(app: Express, store: AuthStore, origin: URL) {
   });
 
   app.get('/login', (req, res) => {
-    const current = session(req);
-    if (current) res.redirect(303, current.setupRequired ? '/setup-admin' : '/');
-    else render(res, false);
+    if (session(req)) res.redirect(303, '/');
+    else render(res);
   });
-  app.post('/login', sameOrigin, form, limitAttempts(false, async (req, res) => {
+  app.post('/login', sameOrigin, form, limitAttempts(async (req, res) => {
     const { username, password } = req.body ?? {};
     const admin = store.getAdmin();
     if (username !== ADMIN_USERNAME || typeof password !== 'string' || password.length > 128 || !admin ||
         !await matchPassword(password, admin.password_hash) || store.getAdmin()?.password_hash !== admin.password_hash) {
-      render(res, false, 401, 'Incorrect username or password.');
+      render(res, 401, 'Incorrect username or password.');
       return;
     }
     const current = session(req);
     if (current) store.deleteSession(current.tokenHash);
     setSession(res, store.createSession());
-    res.redirect(303, admin.setup_code_hash ? '/setup-admin' : '/');
-  }));
-
-  app.get('/setup-admin', (req, res) => {
-    const current = session(req);
-    if (!current) res.redirect(303, '/login');
-    else if (!current.setupRequired) res.redirect(303, '/');
-    else render(res, true);
-  });
-  app.post('/setup-admin', sameOrigin, form, limitAttempts(true, async (req, res) => {
-    const token = readToken(req);
-    if (!token || !store.getSession(token)?.setupRequired) {
-      res.redirect(303, '/login');
-      return;
-    }
-    const { password, setupCode } = req.body ?? {};
-    if (typeof password !== 'string' || password.length < 12 || password.length > 128 || !password.trim()) {
-      render(res, true, 400, 'Choose a password between 12 and 128 characters.');
-      return;
-    }
-    const newToken = typeof setupCode === 'string' && /^[0-9a-f]{64}$/.test(setupCode.trim())
-      ? await store.finishSetup(password, setupCode.trim(), token)
-      : undefined;
-    if (!newToken) {
-      render(res, true, 401, 'The setup code is invalid or has already been used.');
-      return;
-    }
-    setSession(res, newToken);
     res.redirect(303, '/');
   }));
+
+  app.all('/setup-admin', (_req, res) => res.redirect(303, '/login'));
 
   app.post('/logout', sameOrigin, (req, res) => {
     const current = session(req);
@@ -127,13 +103,26 @@ export function installAuth(app: Express, store: AuthStore, origin: URL) {
   app.use((req, res, next) => {
     // The external telemetry handler verifies the independent ingest bearer key.
     if (req.method === 'POST' && /^\/api\/telemetry\/events\/?$/i.test(req.path)) return next();
-    const current = session(req);
-    if (!current || current.setupRequired) {
-      const destination = current ? '/setup-admin' : '/login';
+    // Public: desktop downloads, and the homepage for visitors who aren't signed in.
+    if (req.method === 'GET' && /^\/download\/(mac|windows)\/?$/i.test(req.path)) return next();
+    if ((req.method === 'GET' || req.method === 'HEAD') && req.path === '/' && !session(req)) {
+      void latestDesktopRelease().then(release => {
+        const nonce = randomBytes(16).toString('base64');
+        res.set('Content-Security-Policy', `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`);
+        res.set('Cache-Control', 'no-store');
+        res.type('html').send(landingPage({ release, nonce }));
+      });
+      return;
+    }
+    // The computer connector authenticates every request with its own device key (see devices.ts).
+    if (/^\/api\/connector\//i.test(req.path)) return next();
+    // The connector program itself is public: it holds no secrets until a device key is given to it.
+    if (req.method === 'GET' && /^\/connector\/agenthub-connector\.mjs$/i.test(req.path)) return next();
+    if (!session(req)) {
       if (/^\/api(?:\/|$)/i.test(req.path) || !SAFE_METHODS.has(req.method)) {
-        res.status(current ? 403 : 401).json({ error: current ? 'Complete admin setup.' : 'Sign in to NeuroNest.' });
+        res.status(401).json({ error: 'Sign in to AgentHub.' });
       } else {
-        res.redirect(303, destination);
+        res.redirect(303, '/login');
       }
       return;
     }

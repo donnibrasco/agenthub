@@ -1,18 +1,23 @@
 import React, { useState } from 'react';
+import { Markdown } from './Markdown';
 import { useNeuro } from '../context/NeuroContext';
-import { 
-  Sparkles, 
-  Bot, 
-  FileText, 
-  GitBranch, 
-  Database, 
-  Bookmark, 
-  ArrowRight,
-  Plug
-} from 'lucide-react';
+import { Activity, ArrowRight, Bot, ChevronDown, Database, ListTodo, Plug } from 'lucide-react';
+
+const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const fullDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+function formatWhen(createdAt: string | undefined, fallback: string) {
+  const time = createdAt ? Date.parse(createdAt) : NaN;
+  if (Number.isNaN(time)) return fallback;
+  const minutes = Math.round((time - Date.now()) / 60000);
+  if (minutes > -1) return 'Just now';
+  if (minutes > -60) return relative.format(minutes, 'minute');
+  if (minutes > -60 * 24) return relative.format(Math.round(minutes / 60), 'hour');
+  return fullDate.format(time);
+}
 
 export function DashboardView() {
-  const { agents, activities, searchQuery, setActiveLaunchAgent, setIsConnectModalOpen, setEditingModel } = useNeuro();
+  const { agents, activities, jobs, searchQuery, setActiveLaunchAgent, setIsConnectModalOpen, setEditingModel } = useNeuro();
   const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -34,138 +39,32 @@ export function DashboardView() {
       )
     : activities;
 
+  const stats = [
+    { label: 'Connected models', count: agents.length, icon: Bot, color: 'bg-[#e9f2eb] border border-[#166b66]/15' },
+    { label: 'Active models', count: agents.filter(agent => agent.status === 'Active').length, icon: Activity, color: 'bg-[#e8eef6] border border-[#2f5d8a]/15' },
+    { label: 'Open jobs', count: jobs.filter(job => job.status === 'queued' || job.status === 'in_progress').length, icon: ListTodo, color: 'bg-[#f7eed7] border border-[#987529]/15' },
+    { label: 'Reported tokens', count: agents.reduce((sum, agent) => sum + agent.tokens, 0), icon: Database, color: 'bg-[#eeeaf7] border border-[#5b4bb0]/15' },
+  ];
+
   return (
     <div className="space-y-7">
-      
-      {/* HERO BANNER: Meet NeuroNest */}
-      <div className="relative rounded-3xl bg-[#1B1C1E] border border-[#27292C] p-7 md:p-9 overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 shadow-md">
-        
-        {/* Subtle decorative grid overlay */}
-        <div 
-          className="absolute inset-0 opacity-15 pointer-events-none"
-          style={{
-            backgroundImage: `radial-gradient(rgba(255,255,255,0.15) 1px, transparent 1px)`,
-            backgroundSize: '24px 24px'
-          }}
-        />
-
-        {/* Left Column: Heading, Subtitle & Video CTA */}
-        <div className="space-y-4 max-w-xl z-10">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight font-sans">
-            Meet NeuroNest — Your Modular <br className="hidden sm:inline" />
-            Command Center for Everything AI
-          </h1>
-          <p className="text-xs sm:text-sm text-neutral-400 leading-relaxed font-sans">
-            Welcome to NeuroNest — a modular desktop dashboard built to amplify your creative and operational workflows with AI at the center.
-          </p>
-        </div>
-
-        {/* Right Column: Floating 3D/Metallic AI Model Badges matching Dribbble shot */}
-        <div className="relative z-10 shrink-0 w-64 h-48 flex items-center justify-center">
-          
-          {/* Claude Anthropic Star Badge */}
-          <div className="absolute top-2 left-6 w-14 h-14 rounded-2xl bg-[#28292D] border border-neutral-700/80 shadow-xl flex items-center justify-center transition-transform hover:scale-110">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-amber-300">
-              <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" fill="currentColor"/>
-            </svg>
-          </div>
-
-          {/* OpenAI Spiral Badge */}
-          <div className="absolute top-4 right-10 w-16 h-16 rounded-full bg-[#222326] border border-neutral-700/80 shadow-2xl flex items-center justify-center transition-transform hover:scale-110">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-white">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
-              <path d="M12 7C9.2 7 7 9.2 7 12C7 14.8 9.2 17 12 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-
-          {/* DeepSeek Whale Badge */}
-          <div className="absolute bottom-6 right-2 w-14 h-14 rounded-2xl bg-[#28292D] border border-neutral-700/80 shadow-xl flex items-center justify-center transition-transform hover:scale-110">
-            <span className="text-blue-400 font-bold font-mono text-sm">🐳 R1</span>
-          </div>
-
-          {/* Copy.ai Badge */}
-          <div className="absolute bottom-8 left-16 px-4 py-2 rounded-2xl bg-[#1F2023] border border-neutral-700/80 shadow-lg text-xs font-semibold text-neutral-300 tracking-tight">
-            copy.ai
-          </div>
-
-          {/* Cursor Badge */}
-          <div className="absolute top-16 left-28 w-12 h-12 rounded-2xl bg-[#18191B] border border-neutral-700/80 shadow-lg flex items-center justify-center text-xs font-mono font-bold text-white">
-            ⬡
-          </div>
-
-        </div>
-
+      <div className="rounded-3xl bg-[#fffdfa] border border-[#e7e2d9] p-7 md:p-9">
+        <h1 className="text-3xl font-semibold tracking-tight text-[#282820] sm:text-4xl">AgentHub workspace</h1>
+        <p className="mt-2 text-sm text-[#665f54]">Connect models, run prompts, and review your workspace activity.</p>
       </div>
 
-      {/* QUICK STATS (4 Pastel Cards matching Dribbble reference) */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-bold text-white tracking-tight">
-          Quick Stats
-        </h2>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          {/* Card 1: 150+ Favorite Prompts (Soft Blue) */}
-          <div className="p-5 rounded-2xl bg-[#D7E6FF] text-[#111827] shadow-sm space-y-3 transition-transform hover:-translate-y-0.5">
-            <div className="w-8 h-8 rounded-full bg-[#111827] flex items-center justify-center text-white">
-              <Sparkles className="w-4 h-4 fill-current" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map(({ label, count, icon: Icon, color }) => (
+          <div key={label} className={`p-5 rounded-2xl ${color} text-[#282820] space-y-3`}>
+            <div className="w-8 h-8 rounded-full bg-[#fffdfa]/80 flex items-center justify-center text-[#08666c]">
+              <Icon className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-3xl font-extrabold font-sans tracking-tight text-[#111827]">
-                150+
-              </div>
-              <div className="text-xs font-medium text-neutral-700 mt-0.5">
-                Favorite Prompts
-              </div>
+              <div className="text-3xl font-semibold tracking-tight">{count.toLocaleString()}</div>
+              <div className="text-xs font-medium text-[#4b4941] mt-0.5">{label}</div>
             </div>
           </div>
-
-          {/* Card 2: Connected Models (Soft Mint Green) */}
-          <div className="p-5 rounded-2xl bg-[#E5F3DD] text-[#111827] shadow-sm space-y-3 transition-transform hover:-translate-y-0.5">
-            <div className="w-8 h-8 rounded-full bg-[#111827] flex items-center justify-center text-white">
-              <Bot className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-3xl font-extrabold font-sans tracking-tight text-[#111827]">
-                {agents.length}
-              </div>
-              <div className="text-xs font-medium text-neutral-700 mt-0.5">
-                Connected Models
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: 89 Uploaded Docs (Soft Butter Yellow) */}
-          <div className="p-5 rounded-2xl bg-[#FDF4B8] text-[#111827] shadow-sm space-y-3 transition-transform hover:-translate-y-0.5">
-            <div className="w-8 h-8 rounded-full bg-[#111827] flex items-center justify-center text-white">
-              <FileText className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-3xl font-extrabold font-sans tracking-tight text-[#111827]">
-                89
-              </div>
-              <div className="text-xs font-medium text-neutral-700 mt-0.5">
-                Uploaded Docs
-              </div>
-            </div>
-          </div>
-
-          {/* Card 4: 1.2K Flows Executed (Soft Lilac Purple) */}
-          <div className="p-5 rounded-2xl bg-[#F0E6FA] text-[#111827] shadow-sm space-y-3 transition-transform hover:-translate-y-0.5">
-            <div className="w-8 h-8 rounded-full bg-[#111827] flex items-center justify-center text-white">
-              <GitBranch className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-3xl font-extrabold font-sans tracking-tight text-[#111827]">
-                1.2K
-              </div>
-              <div className="text-xs font-medium text-neutral-700 mt-0.5">
-                Flows Executed
-              </div>
-            </div>
-          </div>
-
-        </div>
+        ))}
       </div>
 
       {/* MAIN 2-COLUMN SPLIT: Quick Launch Agents & Recent Activity */}
@@ -174,8 +73,8 @@ export function DashboardView() {
         {/* Column 1: Connected Models */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white tracking-tight">
-              Connected Models
+            <h2 className="text-sm font-semibold text-[#282820] tracking-tight">
+              Connected Agents
             </h2>
             <button
               type="button"
@@ -183,49 +82,55 @@ export function DashboardView() {
                 setEditingModel(null);
                 setIsConnectModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#e9f2eb] hover:bg-[#dfece4] border border-[#166b66]/25 text-[#1f6b5f] text-xs font-semibold transition-colors"
             >
               <Plug className="w-3 h-3" />
-              <span>Connect Model</span>
+              <span>Connect Agent</span>
             </button>
           </div>
 
           <div className="space-y-3.5">
+            {visibleAgents.length === 0 && (
+              <p className="p-5 rounded-2xl border border-[#e7e2d9] text-sm text-[#665f54]">
+                {agents.length ? 'No connected models match your search.' : 'Connect a model to send your first prompt.'}
+              </p>
+            )}
             {visibleAgents.map(agent => (
               <div
                 key={agent.id}
-                className="p-5 rounded-2xl bg-[#1D1E20] border border-[#27292C] space-y-3 hover:border-neutral-600 transition-colors shadow-sm"
+                className="p-5 rounded-2xl bg-[#fffdfa] border border-[#e7e2d9] space-y-3 hover:border-[#d8d3ca] transition-colors shadow-sm"
               >
                 {/* Header: Date + Active Status pill */}
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-500 font-sans">{agent.date}</span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1F3D27] text-[#4ADE80] border border-[#275333] flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] animate-pulse" />
+                  <span className="text-[#777064] font-sans">{agent.date}</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                    agent.status === 'Active' ? 'bg-[#e9f2eb] text-[#1f6b5f] border-[#166b66]/25' : 'bg-[#ede9e0] text-[#4b4941] border-[#d8d3ca]'
+                  }`}>
                     <span>{agent.status}</span>
                   </span>
                 </div>
 
                 {/* Title & Description */}
                 <div>
-                  <h3 className="text-base font-semibold text-white tracking-tight">
+                  <h3 className="text-base font-semibold text-[#282820] tracking-tight">
                     {agent.name}
                   </h3>
-                  <p className="text-xs text-neutral-400 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-[#665f54] mt-1 line-clamp-2 leading-relaxed">
                     {agent.description}
                   </p>
                 </div>
 
                 {/* Footer Telemetry & Quick Launch Button */}
-                <div className="flex items-center justify-between pt-2 border-t border-[#2A2B2E] text-xs">
-                  <div className="flex items-center gap-2 font-mono text-neutral-400">
-                    <Database className="w-3.5 h-3.5 text-neutral-500" />
-                    <span>{agent.tokens} Tokens</span>
-                    <span className="text-emerald-400 font-sans font-medium">Running</span>
+                <div className="flex items-center justify-between pt-2 border-t border-[#e7e2d9] text-xs">
+                  <div className="flex items-center gap-2 text-[#665f54]">
+                    <Database className="w-3.5 h-3.5 text-[#777064]" />
+                    <span className="tabular-nums">{agent.tokens.toLocaleString()} tokens</span>
+
                   </div>
 
                   <button
                     onClick={() => setActiveLaunchAgent(agent)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2A2C30] hover:bg-[#34363A] text-white text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f2eee6] hover:bg-[#ede9e0] text-[#282820] text-xs font-medium transition-colors"
                   >
                     <span>Run Prompt</span>
                     <ArrowRight className="w-3 h-3" />
@@ -238,53 +143,54 @@ export function DashboardView() {
 
         {/* Column 2: Recent Activity */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-white tracking-tight">
+          <h2 className="text-sm font-semibold text-[#282820] tracking-tight">
             Recent Activity
           </h2>
 
           <div className="space-y-3.5">
-            {visibleActivities.map(act => (
-              <div
-                key={act.id}
-                onClick={() => setSelectedActivity(selectedActivity === act.id ? null : act.id)}
-                className={`p-5 rounded-2xl ${act.bgColorClass} cursor-pointer transition-all hover:opacity-95 shadow-sm space-y-3`}
-              >
-                {/* Header: Date + Indicator Icon */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-neutral-600 font-sans">{act.date}</span>
-                  <Bookmark className="w-4 h-4 text-neutral-500" />
+            {visibleActivities.length === 0 && (
+              <p className="p-5 rounded-2xl border border-[#e7e2d9] text-sm text-[#665f54]">
+                {activities.length ? 'No activity matches your search.' : 'Model connections and prompt runs will appear here.'}
+              </p>
+            )}
+            {visibleActivities.map(act => {
+              const isRun = /blue|2f5d8a/i.test(act.tagColorClass) || act.title.endsWith('Live Run');
+              const open = selectedActivity === act.id;
+              return (
+                <div key={act.id} className="workspace-card overflow-hidden">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setSelectedActivity(open ? null : act.id)}
+                    className="block w-full space-y-3 p-5 text-left transition hover:bg-[#f8f5ef] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#08666c]"
+                  >
+                    <span className="flex items-center justify-between gap-3 text-xs">
+                      <span className={`inline-flex items-center gap-1.5 font-medium ${isRun ? 'text-[#2f5d8a]' : 'text-[#1f6b5f]'}`}>
+                        <span aria-hidden="true" className={`size-1.5 rounded-full ${isRun ? 'bg-[#2f5d8a]' : 'bg-[#08666c]'}`} />
+                        {isRun ? 'Prompt run' : 'Connection'}
+                      </span>
+                      <time className="text-[#777064]" dateTime={act.createdAt}>{formatWhen(act.createdAt, act.date)}</time>
+                    </span>
+                    <span className="block">
+                      <span className="block text-base font-semibold tracking-tight text-[#282820]">{act.title}</span>
+                      <span className="mt-1 line-clamp-2 block text-sm leading-relaxed text-[#665f54]">{act.snippet}</span>
+                    </span>
+                    <span className="flex items-center justify-between gap-3 pt-1">
+                      <span className="rounded-full border border-[#d8d3ca] bg-[#f2eee6] px-2.5 py-0.5 text-xs font-medium text-[#4b4941]">{act.modelTag}</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#08666c]">
+                        {open ? 'Hide response' : 'View response'}
+                        <ChevronDown aria-hidden="true" className={`size-3.5 transition ${open ? 'rotate-180' : ''}`} />
+                      </span>
+                    </span>
+                  </button>
+                  {open && (
+                    <div className="border-t border-[#e7e2d9] bg-[#faf8f4] px-5 py-4">
+                      <div className="max-h-[28rem] overflow-y-auto pr-1"><Markdown size="sm">{act.response}</Markdown></div>
+                    </div>
+                  )}
                 </div>
-
-                {/* Title & Snippet */}
-                <div>
-                  <h3 className={`text-base font-bold tracking-tight ${act.textColorClass}`}>
-                    {act.title}
-                  </h3>
-                  <p className="text-xs text-neutral-700 mt-1 leading-relaxed">
-                    {act.snippet}
-                  </p>
-                </div>
-
-                {/* Bottom Model Badge */}
-                <div className="pt-1 flex items-center justify-between">
-                  <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${act.tagColorClass} shadow-sm`}>
-                    {act.modelTag}
-                  </span>
-
-                  <span className="text-[11px] text-neutral-500 hover:underline">
-                    {selectedActivity === act.id ? 'Collapse response' : 'View full response →'}
-                  </span>
-                </div>
-
-                {/* Expanded Response Drawer */}
-                {selectedActivity === act.id && (
-                  <div className="p-3.5 rounded-xl bg-white/90 text-neutral-900 text-xs font-mono mt-2 space-y-1.5 shadow-inner">
-                    <div className="font-semibold text-neutral-700 text-[11px] uppercase tracking-wider">Generated Output:</div>
-                    <p className="whitespace-pre-wrap leading-relaxed">{act.response}</p>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

@@ -21,3 +21,26 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.4);
 }
+
+@layer components {
+  .workspace-page {
+    @apply min-w-0 bg-[#faf8f4] text-[#282820];
+    color-scheme: light;
+  }
+
+  .workspace-card {
+    @apply rounded-2xl border border-[#e7e2d9] bg-[#fffdfa] shadow-[0_1px_2px_#26251e0a];
+  }
+
+  .workspace-primary {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#262922] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#3b4236] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08666c] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .workspace-button {
+    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#d8d3ca] px-3 py-1.5 text-sm font-medium text-[#4b4941] transition hover:bg-[#ede9e0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08666c] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .workspace-input {
+    @apply min-h-9 rounded-lg border border-[#d8d3ca] bg-[#fffdfa] px-3 py-1.5 text-sm text-[#282820] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08666c];
+  }
+}

@@ -1,167 +1,60 @@
-import React from 'react';
-import { useNeuro } from '../context/NeuroContext';
-import { 
-  LayoutGrid, 
-  Bot, 
-  GitBranch, 
-  LineChart, 
-  Sparkles,
-  ListTodo,
-  LogOut
-} from 'lucide-react';
+import { Plug, GitBranch, LayoutGrid, LineChart, List, ListTodo, LogOut, Plus, Sparkles, UserRound } from 'lucide-react';
+import { useNeuro, type ActiveTab } from '../context/NeuroContext';
 
-export function NeuroSidebar() {
-  const { activeTab, setActiveTab } = useNeuro();
+const mainLinks = [
+  { tab: 'timeline', label: 'Timeline', Icon: List },
+  { tab: 'agents', label: 'Connections', Icon: Plug },
+  { tab: 'jobs', label: 'Jobs & Tasks', Icon: ListTodo },
+  { tab: 'workflows', label: 'Workflows', Icon: GitBranch },
+  { tab: 'analytics', label: 'Usage', Icon: LineChart },
+] as const;
+
+const workspaceLinks = [
+  { tab: 'dashboards', label: 'Dashboards', Icon: LayoutGrid },
+  { tab: 'improvements', label: 'Improvements', Icon: Sparkles },
+] as const;
+
+export function NeuroSidebar({ onNavigate }: { onNavigate: (tab: ActiveTab) => void }) {
+  const { activeTab } = useNeuro();
+
+  function renderLink({ tab, label, Icon }: (typeof mainLinks | typeof workspaceLinks)[number]) {
+    const active = activeTab === tab;
+    const colors = active ? 'bg-[#08666c] text-white' : 'text-[#5c584d] hover:bg-[#ebe6dc]';
+    return (
+      <button key={tab} type="button" onClick={() => onNavigate(tab)} aria-current={active ? 'page' : undefined} title={label}
+        className={`flex min-h-10 w-full items-center justify-center gap-2.5 rounded-lg px-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-[#26878b] sm:justify-start sm:px-3 ${colors}`}>
+        <Icon aria-hidden="true" className="size-4 shrink-0" /><span className="sr-only sm:not-sr-only">{label}</span>
+      </button>
+    );
+  }
 
   return (
-    <aside className="w-64 shrink-0 border-r border-[#222426] bg-[#141517] flex flex-col justify-between p-4 h-screen sticky top-0 select-none text-slate-300">
-      
-      {/* Top Branding & Navigation */}
-      <div className="space-y-6">
-        
-        {/* NeuroNest Brand Lockup */}
-        <div className="flex items-center gap-2.5 px-2 py-1">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-white to-slate-300 text-neutral-950 font-bold shadow-sm">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 18L10 6L14 14L20 6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <span className="text-base font-bold tracking-tight text-white font-sans">
-            NeuroNest
-          </span>
+    <aside className={`sticky top-0 flex h-dvh w-14 shrink-0 flex-col gap-6 overflow-y-auto border-r p-2 sm:w-48 sm:p-4 xl:w-60 border-[#e5dfd4] bg-[#f2eee6] text-[#282820]`}>
+      <button type="button" onClick={() => onNavigate('timeline')} title="AgentHub"
+        className="flex items-center justify-center gap-2.5 rounded-lg py-1 sm:justify-start sm:px-2">
+        <span className={`grid size-7 shrink-0 place-items-center rounded-lg bg-[#08666c] text-white`}>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 18L10 6L14 14L20 6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+        <span className="sr-only text-base font-semibold tracking-tight sm:not-sr-only">AgentHub</span>
+      </button>
+      <nav aria-label="Workspace" className="space-y-5">
+        <button type="button" onClick={() => onNavigate('new-chat')} title="New chat" aria-current={activeTab === 'new-chat' ? 'page' : undefined}
+          className={`flex min-h-10 w-full items-center justify-center gap-2 rounded-lg px-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#26878b] bg-[#262922] text-white hover:bg-[#3b4236]`}>
+          <Plus aria-hidden="true" className="size-4 shrink-0" /><span className="sr-only sm:not-sr-only">New chat</span>
+        </button>
+        <div className="space-y-1">{mainLinks.map(renderLink)}</div>
+        <div className={`space-y-1 border-t pt-3 border-[#e5dfd4]`}>{workspaceLinks.map(renderLink)}</div>
+      </nav>
+      <div className={`mt-auto border-t pt-3 border-[#e5dfd4]`}>
+        <div className="flex items-center justify-center gap-2 py-1 sm:justify-start sm:px-2">
+          <UserRound aria-hidden="true" className="size-4" /><span className="sr-only text-xs font-medium sm:not-sr-only">Workspace admin</span>
         </div>
-
-        {/* SECTION: GENERAL */}
-        <div className="space-y-1">
-          <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider px-3 mb-2">
-            General
-          </div>
-          
-          <button
-            type="button"
-            onClick={() => setActiveTab('dashboards')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-              activeTab === 'dashboards'
-                ? 'bg-[#252629] text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white hover:bg-[#1D1E20]'
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            <span>Dashboards</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('agents')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-              activeTab === 'agents'
-                ? 'bg-[#252629] text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white hover:bg-[#1D1E20]'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Bot className="w-4 h-4" />
-              <span>Connected Models</span>
-            </div>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/50">
-              stream
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('jobs')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-              activeTab === 'jobs'
-                ? 'bg-[#252629] text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white hover:bg-[#1D1E20]'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <ListTodo className="w-4 h-4" />
-              <span>Jobs & Tasks</span>
-            </div>
-            <span className="text-[10px] font-mono text-orange-400 bg-orange-950/60 px-1.5 py-0.5 rounded border border-orange-800/50">
-              Active
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('improvements')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-              activeTab === 'improvements'
-                ? 'bg-[#252629] text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white hover:bg-[#1D1E20]'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-[#A5A1EE]" />
-              <span>Improvements</span>
-            </div>
-            <span className="text-[10px] font-medium text-[#A5A1EE] bg-[#222233] px-1.5 py-0.5 rounded border border-[#343452]">
-              Beta
-            </span>
-          </button>
-        </div>
-
-        {/* SECTION: MONITORING & FLOWS */}
-        <div className="space-y-1">
-          <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider px-3 mb-2">
-            Operations
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('workflows')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-              activeTab === 'workflows'
-                ? 'bg-[#252629] text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white hover:bg-[#1D1E20]'
-            }`}
-          >
-            <GitBranch className="w-4 h-4" />
-            <span>Workflows</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('analytics')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-              activeTab === 'analytics'
-                ? 'bg-[#252629] text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white hover:bg-[#1D1E20]'
-            }`}
-          >
-            <LineChart className="w-4 h-4" />
-            <span>Analytics</span>
-          </button>
-        </div>
-
-      </div>
-
-      {/* Bottom Profile Lockup */}
-      <div className="pt-4 border-t border-[#222426]">
-        <div className="flex items-center gap-3 px-2">
-          <img
-            src="/src/assets/images/avatar_franklin_1794427738987.jpg"
-            alt="Franklin Eugene"
-            className="w-9 h-9 rounded-lg object-cover border border-neutral-700"
-            referrerPolicy="no-referrer"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-white truncate">Franklin Eugene</div>
-            <div className="text-[11px] text-neutral-500 font-mono truncate">eug.frank01@lain.com</div>
-          </div>
-        </div>
-        <form action="/logout" method="post" className="mt-3">
-          <button type="submit" className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-neutral-400 hover:text-white hover:bg-[#1D1E20]">
-            <LogOut className="w-4 h-4" />
-            <span>Sign out</span>
+        <form action="/logout" method="post">
+          <button type="submit" title="Sign out" className={`mt-2 flex min-h-9 w-full items-center justify-center gap-2 rounded-lg text-xs transition sm:justify-start sm:px-2 text-[#5c584d] hover:bg-[#ebe6dc]`}>
+            <LogOut aria-hidden="true" className="size-4" /><span className="sr-only sm:not-sr-only">Sign out</span>
           </button>
         </form>
       </div>
-
     </aside>
   );
 }

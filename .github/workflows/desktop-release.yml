@@ -1,0 +1,80 @@
+# Builds the AgentHub desktop installers and publishes them as a GitHub Release.
+# Start it by pushing a tag like desktop-v0.1.0 (or "Run workflow" in the Actions tab).
+# The homepage download buttons always point at the latest release's files.
+name: Desktop app release
+
+on:
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create, e.g. desktop-v0.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, script: dist:mac, file: AgentHub-mac.dmg }
+          - { name: Windows, os: windows-latest, script: dist:win, file: AgentHub-windows-setup.exe }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    env:
+      # Unsigned for now: no Apple or Windows signing certificates yet.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Use the version from the tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#desktop-v}"
+          npm pkg set version="$VERSION"
+          echo "Building AgentHub $VERSION"
+      - run: npm ci
+      - run: npm run ${{ matrix.script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: desktop/release/${{ matrix.file }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: AgentHub ${{ github.event.inputs.tag || github.ref_name }}
+          make_latest: 'true'
+          files: |
+            installers/AgentHub-mac.dmg
+            installers/AgentHub-windows-setup.exe
+          body: |
+            Download AgentHub for your computer.
+
+            - **macOS** (Apple silicon and Intel, macOS 12+): `AgentHub-mac.dmg`
+            - **Windows** (10 and 11, 64-bit): `AgentHub-windows-setup.exe`
+
+            These builds are not code-signed yet. On macOS, right-click AgentHub in Applications and choose **Open** the first time.
+            On Windows, click **More info → Run anyway** if SmartScreen appears.

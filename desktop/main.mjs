@@ -1,7 +1,7 @@
 // AgentHub desktop app: shows AgentHub in a window and runs the connector in the background,
 // so Codex and Claude Code jobs run on this computer with the person's own sign-in.
-import { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage, safeStorage, shell } from 'electron';
-import { spawn, spawnSync } from 'node:child_process';
+import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, shell } from 'electron';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -53,18 +53,36 @@ function loadPairing() {
 function clearPairing() { fs.rmSync(pairingFile(), { force: true }); }
 
 // ── PATH: apps opened from Finder don't see the shell's PATH (npm, Homebrew, ~/.local/bin) ──
+/** Runs in the background (at most 4 s) so a slow shell setup never delays the window. */
 function fixPath() {
   const extra = IS_WINDOWS
     ? [path.join(process.env.APPDATA || '', 'npm'), path.join(os.homedir(), '.local', 'bin')]
     : ['/opt/homebrew/bin', '/usr/local/bin', path.join(os.homedir(), '.local', 'bin'), path.join(os.homedir(), '.npm-global', 'bin'), path.join(os.homedir(), '.claude', 'local')];
-  let shellPath = '';
-  if (!IS_WINDOWS) {
-    const shellBin = process.env.SHELL || (IS_MAC ? '/bin/zsh' : '/bin/bash');
-    const result = spawnSync(shellBin, ['-ilc', 'printf "__AGENTHUB_PATH__%s__AGENTHUB_PATH__" "$PATH"'], { encoding: 'utf8', timeout: 8000 });
-    shellPath = result.stdout?.match(/__AGENTHUB_PATH__(.*)__AGENTHUB_PATH__/)?.[1] ?? '';
-  }
-  const parts = [...shellPath.split(path.delimiter), ...(process.env.PATH || '').split(path.delimiter), ...extra].filter(Boolean);
-  process.env.PATH = [...new Set(parts)].join(path.delimiter);
+  const apply = shellPath => {
+    const parts = [...shellPath.split(path.delimiter), ...(process.env.PATH || '').split(path.delimiter), ...extra].filter(Boolean);
+    process.env.PATH = [...new Set(parts)].join(path.delimiter);
+  };
+  if (IS_WINDOWS) { apply(''); return Promise.resolve(); }
+  return new Promise(resolve => {
+    let out = '';
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      apply(out.match(/__AGENTHUB_PATH__(.*)__AGENTHUB_PATH__/)?.[1] ?? '');
+      resolve();
+    };
+    try {
+      const shellBin = process.env.SHELL || (IS_MAC ? '/bin/zsh' : '/bin/bash');
+      const child = spawn(shellBin, ['-ilc', 'printf "__AGENTHUB_PATH__%s__AGENTHUB_PATH__" "$PATH"'], { stdio: ['ignore', 'pipe', 'ignore'] });
+      child.stdout.on('data', data => { out += data; });
+      child.on('close', finish);
+      child.on('error', finish);
+      setTimeout(() => { child.kill(); finish(); }, 4000);
+    } catch {
+      finish();
+    }
+  });
 }
 
 // ── sign-in and installs, shown the desktop way ──
@@ -155,7 +173,9 @@ function createWindow() {
     webPreferences: { preload: path.join(here, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
   });
   if (!IS_MAC) { win.removeMenu(); addShortcuts(win); }
-  win.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) win.show(); });
+  const reveal = () => { if (win && !win.isVisible() && !process.argv.includes('--hidden')) win.show(); };
+  win.once('ready-to-show', reveal);
+  setTimeout(reveal, 3000);
   // Only AgentHub loads inside the app; every other link opens in the browser.
   win.webContents.setWindowOpenHandler(({ url }) => { if (isOurs(url)) void win.loadURL(url); else openOutside(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (event, url) => { if (!isOurs(url)) { event.preventDefault(); openOutside(url); } });
@@ -256,17 +276,28 @@ app.on('activate', showWindow);
 app.on('before-quit', () => { quitting = true; connector?.stop(); });
 app.on('window-all-closed', () => { /* keep running in the tray */ });
 
+// Startup errors go to the log and a message box, never a silent crash.
+let errorShown = false;
+function reportFatal(error) {
+  log('Error:', error?.stack || String(error));
+  if (errorShown || !app.isReady()) return;
+  errorShown = true;
+  dialog.showErrorBox('AgentHub hit a problem', `${error?.message || error}\n\nDetails are in the connector log (tray menu → Open connector log).`);
+}
+process.on('uncaughtException', reportFatal);
+process.on('unhandledRejection', reportFatal);
+
 app.whenReady().then(() => {
-  fixPath();
-  log(`AgentHub ${app.getVersion()} starting (connector ${CONNECTOR_VERSION}, server ${SERVER})`);
+  log(`AgentHub ${app.getVersion()} starting on ${process.platform} ${process.arch} (connector ${CONNECTOR_VERSION}, server ${SERVER})`);
   createAppMenu();
-  createTray();
+  // The window comes first so something always appears.
+  createWindow();
+  try { createTray(); } catch (error) { log('Tray unavailable:', error.message); }
   // First launch: start at login by default (it can be switched off in the tray menu).
   const firstRun = path.join(userDir(), '.initialized');
   if (!fs.existsSync(firstRun)) {
     app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
     fs.writeFileSync(firstRun, '');
   }
-  createWindow();
-  startPairedConnector();
-});
+  void fixPath().then(startPairedConnector);
+}).catch(reportFatal);

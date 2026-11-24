@@ -222,7 +222,7 @@ export function landingPage({ release, nonce, signedIn = false }: { release: Des
       <div class="dl" data-card="mac">
         <div class="dl-head"><span class="dl-icon">${APPLE}</span><div><h3>macOS</h3><p class="meta">${meta.mac}</p></div></div>
         ${button('mac', true)}
-        <details><summary>First time opening it?</summary><ol><li>Open the .dmg and drag AgentHub to Applications.</li><li>In Applications, <b>right-click</b> AgentHub and choose <b>Open</b>, then <b>Open</b> again. (This app isn't signed with Apple yet, so macOS asks once.)</li></ol></details>
+        <details><summary>First time opening it?</summary><ol><li>Open the .dmg and drag AgentHub to Applications.</li><li>Open AgentHub from Applications. macOS warns once because the app isn't signed with Apple yet.</li><li><b>macOS 15 or later:</b> click <b>Done</b>, then open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>.</li><li><b>macOS 12–14:</b> right-click AgentHub and choose <b>Open</b>, then <b>Open</b> again.</li></ol></details>
       </div>
       <div class="dl" data-card="windows">
         <div class="dl-head"><span class="dl-icon">${WINDOWS}</span><div><h3>Windows</h3><p class="meta">${meta.windows}</p></div></div>

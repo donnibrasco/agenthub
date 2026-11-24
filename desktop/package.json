@@ -1,7 +1,7 @@
 {
   "name": "agenthub-desktop",
   "productName": "AgentHub",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AgentHub for your desktop: one hub for all your AI agents, with Codex and Claude Code running on this computer.",
   "author": "AgenticProcess",
   "license": "UNLICENSED",
@@ -28,7 +28,9 @@
       "target": [{ "target": "dmg", "arch": ["universal"] }],
       "category": "public.app-category.productivity",
       "icon": "assets/icon.png",
-      "identity": null,
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
       "minimumSystemVersion": "12.0"
     },
     "dmg": { "artifactName": "AgentHub-mac.dmg", "title": "AgentHub" },

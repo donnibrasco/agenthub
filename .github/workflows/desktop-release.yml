@@ -38,12 +38,17 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
-      - name: Use the version from the tag
+      - name: Check the tag matches the pushed app version
+        # Stops a build of old code: the tag must equal "version" in desktop/package.json on this commit.
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          VERSION="${TAG#desktop-v}"
-          npm pkg set version="$VERSION"
-          echo "Building AgentHub $VERSION"
+          WANT="${TAG#desktop-v}"
+          HAVE="$(node -p "require('./package.json').version")"
+          echo "Commit ${GITHUB_SHA::7}: desktop/package.json says $HAVE, tag says $WANT"
+          if [ "$WANT" != "$HAVE" ]; then
+            echo "::error::Tag $TAG doesn't match desktop/package.json ($HAVE) on commit ${GITHUB_SHA::7}. Push your latest code first, then run the workflow again with tag desktop-v$HAVE."
+            exit 1
+          fi
       - run: npm ci
       - run: npm run ${{ matrix.script }}
       - uses: actions/upload-artifact@v4
@@ -70,7 +75,7 @@ jobs:
             installers/AgentHub-mac.dmg
             installers/AgentHub-windows-setup.exe
           body: |
-            Download AgentHub for your computer.
+            Download AgentHub for your computer. Built from commit ${{ github.sha }}.
 
             - **macOS** (Apple silicon and Intel, macOS 12+): `AgentHub-mac.dmg`
             - **Windows** (10 and 11, 64-bit): `AgentHub-windows-setup.exe`

@@ -56,7 +56,7 @@ function clearPairing() { fs.rmSync(pairingFile(), { force: true }); }
 /** Runs in the background (at most 4 s) so a slow shell setup never delays the window. */
 function fixPath() {
   const extra = IS_WINDOWS
-    ? [path.join(process.env.APPDATA || '', 'npm'), path.join(os.homedir(), '.local', 'bin')]
+    ? [path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs'), path.join(process.env.APPDATA || '', 'npm'), path.join(os.homedir(), '.local', 'bin')]
     : ['/opt/homebrew/bin', '/usr/local/bin', path.join(os.homedir(), '.local', 'bin'), path.join(os.homedir(), '.npm-global', 'bin'), path.join(os.homedir(), '.claude', 'local')];
   const apply = shellPath => {
     const parts = [...shellPath.split(path.delimiter), ...(process.env.PATH || '').split(path.delimiter), ...extra].filter(Boolean);
@@ -95,23 +95,39 @@ function openClaudeTerminal() {
   if (IS_MAC) {
     spawn('osascript', ['-e', 'tell application "Terminal" to activate', '-e', 'tell application "Terminal" to do script "claude"'], { detached: true, stdio: 'ignore' }).unref();
   } else if (IS_WINDOWS) {
-    spawn('cmd.exe', ['/c', 'start', '"Claude Code"', 'cmd.exe', '/k', 'claude'], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+    // Verbatim: Node would otherwise quote "Claude Code" so `start` misreads it (Windows looked for "Code\").
+    spawn('cmd.exe', ['/d', '/c', 'start', '"Claude Code"', 'cmd.exe', '/k', 'claude'], { detached: true, stdio: 'ignore', windowsHide: false, windowsVerbatimArguments: true }).unref();
   } else {
     spawn('x-terminal-emulator', ['-e', 'claude'], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
   }
 }
 
+/** Runs an installer or sign-in without a window. Resolves with the exit code and, on failure, the last output lines. */
 function runQuietly(job) {
   return new Promise(resolve => {
     log(`Starting: ${job.title}`);
-    const child = spawn(job.cmd, shellArgs(job.args), { shell: IS_WINDOWS, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let tail = '';
+    let child;
+    try {
+      child = spawn(job.cmd, job.shell ? shellArgs(job.args) : job.args, { shell: job.shell, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (error) {
+      resolve({ exitCode: null, detail: error.message });
+      return;
+    }
     const out = fs.createWriteStream(logFile(), { flags: 'a' });
-    child.stdout.pipe(out, { end: false });
-    child.stderr.pipe(out, { end: false });
+    const keep = data => { out.write(data); tail = (tail + data).slice(-3000); };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
     const timer = setTimeout(() => child.kill(), 15 * 60_000);
-    const done = code => { clearTimeout(timer); out.end(); log(`Finished: ${job.title} (exit ${code})`); resolve(code); };
-    child.on('close', done);
-    child.on('error', () => done(null));
+    const done = (code, error) => {
+      clearTimeout(timer);
+      out.end();
+      log(`Finished: ${job.title} (exit ${code})`);
+      const lines = tail.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').split(/\r?\n/).map(l => l.trim()).filter(l => l && !/^[-\\|/\s█▒░]+$/.test(l));
+      resolve({ exitCode: code, detail: code === 0 ? undefined : (error?.message || lines.slice(-2).join(' ').slice(0, 300) || undefined) });
+    };
+    child.on('close', code => done(code));
+    child.on('error', error => done(null, error));
   });
 }
 
@@ -125,9 +141,9 @@ async function interactive(job) {
     return 0;
   }
   notify('AgentHub', `${job.title}…`);
-  const code = await runQuietly(job);
-  notify('AgentHub', code === 0 ? `${job.title.split(':')[0]}: done.` : `${job.title.split(':')[0]} failed. See Help → Open connector log.`);
-  return code;
+  const outcome = await runQuietly(job);
+  notify('AgentHub', outcome.exitCode === 0 ? `${job.title.split(':')[0]}: done.` : `${job.title.split(':')[0]} failed. Details are in AgentHub → Connections.`);
+  return outcome;
 }
 
 // ── connector ──

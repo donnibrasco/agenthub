@@ -17,6 +17,8 @@ export interface Device {
   online: boolean;
   paired: boolean;
   report: { node?: string; activity?: string; harnesses?: Partial<Record<Harness, HarnessReport>> };
+  /** Latest Install / Update / Sign in request per CLI, with its result. */
+  actions?: Partial<Record<Harness, { action: 'install' | 'update' | 'login' | 'check'; status: 'running' | 'done' | 'failed'; error?: string; startedAt: string; finishedAt?: string }>>;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {

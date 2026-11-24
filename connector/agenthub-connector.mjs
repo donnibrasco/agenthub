@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 const IS_WINDOWS = process.platform === 'win32';
 const MAX_RUNS = 2;
 const PACKAGES = { codex: '@openai/codex', claude: '@anthropic-ai/claude-code' };
@@ -164,19 +164,38 @@ export function startConnector(options) {
   }
 
   /** The fixed install/sign-in commands. Nothing here comes from the server. */
+  /**
+   * The fixed install/sign-in commands. Nothing here comes from the server.
+   * `shell` is only for npm/codex/claude, which are .cmd files on Windows; PowerShell and bash
+   * are started directly so their arguments reach them unchanged.
+   */
   function task(kind, harness) {
+    const verb = kind === 'install' ? 'Installing' : 'Updating';
     if (kind === 'login') {
       return harness === 'codex'
-        ? { kind, harness, cmd: 'codex', args: ['login'], title: 'Sign in to Codex: finish in the browser window that opens' }
-        : { kind, harness, cmd: 'claude', args: [], title: 'Claude Code sign-in: type /login, finish in your browser, then type /exit' };
+        ? { kind, harness, cmd: 'codex', args: ['login'], shell: IS_WINDOWS, title: 'Sign in to Codex: finish in the browser window that opens' }
+        : { kind, harness, cmd: 'claude', args: [], shell: IS_WINDOWS, title: 'Claude Code sign-in: type /login, finish in your browser, then type /exit' };
     }
-    const npm = run('npm', ['--version']).ok;
-    if (npm) return { kind, harness, cmd: 'npm', args: ['install', '-g', `${PACKAGES[harness]}@latest`], title: `${kind === 'install' ? 'Installing' : 'Updating'} ${NAMES[harness]}` };
+    const pkg = `${PACKAGES[harness]}@latest`;
+    if (run('npm', ['--version']).ok) return { kind, harness, cmd: 'npm', args: ['install', '-g', pkg], shell: IS_WINDOWS, title: `${verb} ${NAMES[harness]}` };
     // Claude Code has an official installer that doesn't need Node.js.
     if (harness === 'claude') {
       return IS_WINDOWS
-        ? { kind, harness, cmd: 'powershell', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://claude.ai/install.ps1 | iex'], title: 'Installing Claude Code' }
-        : { kind, harness, cmd: 'bash', args: ['-c', 'curl -fsSL https://claude.ai/install.sh | bash'], title: 'Installing Claude Code' };
+        ? { kind, harness, cmd: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://claude.ai/install.ps1 | iex'], shell: false, title: `${verb} Claude Code` }
+        : { kind, harness, cmd: 'bash', args: ['-c', 'curl -fsSL https://claude.ai/install.sh | bash'], shell: false, title: `${verb} Claude Code` };
+    }
+    // Codex needs Node.js. Install it with the system's package manager when there is one.
+    if (IS_WINDOWS && run('winget', ['--version']).ok) {
+      const script = [
+        'winget install -e --id OpenJS.NodeJS.LTS --silent --accept-source-agreements --accept-package-agreements',
+        "$env:Path = $env:ProgramFiles + '\\nodejs;' + $env:APPDATA + '\\npm;' + $env:Path",
+        `npm install -g ${pkg}`,
+        'exit $LASTEXITCODE',
+      ].join('; ');
+      return { kind, harness, cmd: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], shell: false, title: `${verb} Node.js and Codex` };
+    }
+    if (!IS_WINDOWS && run('brew', ['--version']).ok) {
+      return { kind, harness, cmd: 'bash', args: ['-c', `brew install node && npm install -g ${pkg}`], shell: false, title: `${verb} Node.js and Codex` };
     }
     return null;
   }
@@ -194,12 +213,15 @@ export function startConnector(options) {
       } else if ((type === 'install' || type === 'update' || type === 'login') && PACKAGES[harness]) {
         const job = task(type, harness);
         if (!job) {
-          result = { exitCode: null, error: 'Install Node.js (nodejs.org) on this computer first, then try again.' };
+          result = { exitCode: null, error: 'Codex needs Node.js. Install the LTS version from nodejs.org on this computer, then click Install again.' };
         } else {
           activity = job.title.split(':')[0];
           void report();
-          const code = options.interactive ? await options.interactive(job) : null;
-          result = { exitCode: code, error: code === 0 ? undefined : `${job.title.split(':')[0]} did not finish. See AgentHub on that computer.` };
+          // Hosts return an exit code, or { exitCode, detail } with the last lines of output.
+          const outcome = options.interactive ? await options.interactive(job) : null;
+          const code = typeof outcome === 'number' || outcome === null ? outcome : outcome.exitCode;
+          const detail = outcome && typeof outcome === 'object' && outcome.detail ? `: ${outcome.detail}` : '.';
+          result = { exitCode: code, error: code === 0 ? undefined : `${job.title.split(':')[0]} failed${detail}` };
         }
       } else if (type !== 'check') {
         result = { exitCode: null, error: 'Unknown request.' };
@@ -285,7 +307,7 @@ function cliMain() {
     interactive: job => new Promise(resolve => {
       quiet = true;
       console.log(`\n── ${job.title} ──`);
-      const child = spawn(job.cmd, shellArgs(job.args), { stdio: 'inherit', shell: IS_WINDOWS });
+      const child = spawn(job.cmd, job.shell ? shellArgs(job.args) : job.args, { stdio: 'inherit', shell: job.shell });
       const done = code => {
         quiet = false;
         console.log(`── done (${code === 0 ? 'ok' : `exit ${code}`}) ──\n`);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, ArrowUpCircle, Bot, Check, CheckCircle2, Copy, KeyRound, Laptop, Loader2, Plug, Plus, RefreshCw, Sparkles, SquareTerminal, X } from 'lucide-react';
 import { useNeuro, type NeuroAgent } from '../context/NeuroContext';
 import { desktopBridge, deviceAction, isNewer, listDevices, pairDevice, removeDevice, setupCommands, type Device, type Harness } from '../lib/devices';
@@ -155,7 +155,11 @@ function harnessState(device: Device, harness: Harness, busyKey: string | null) 
   const report = device.report.harnesses?.[harness];
   const activity = device.report.activity ?? '';
   const name = HARNESSES.find(h => h.id === harness)!.name;
-  if (busyKey === `${device.id}:${harness}` || activity.includes(name)) return { tone: 'busy' as Tone, label: activity || 'Working…', action: null };
+  const running = device.actions?.[harness]?.status === 'running';
+  if (busyKey === `${device.id}:${harness}` || running || activity.includes(name)) {
+    const verb = { install: 'Installing…', update: 'Updating…', login: 'Signing in…', check: 'Checking…' }[device.actions?.[harness]?.action ?? 'install'];
+    return { tone: 'busy' as Tone, label: activity.includes(name) ? `${activity}…` : verb, action: null };
+  }
   if (!device.online) return { tone: 'muted' as Tone, label: 'Computer offline', action: null };
   if (!report?.installed) return { tone: 'muted' as Tone, label: 'Not installed', action: 'install' as const };
   if (report.signedIn === false) return { tone: 'warn' as Tone, label: 'Not signed in', action: 'login' as const };
@@ -166,6 +170,8 @@ function harnessState(device: Device, harness: Harness, busyKey: string | null) 
 export function ConnectionsView({ onNewChat }: { onNewChat: () => void }) {
   const { agents, connectModel, disconnectModel, setEditingModel, setIsConnectModalOpen } = useNeuro();
   const [devices, setDevices] = useState<Device[] | null>(null);
+  const devicesRef = useRef<Device[] | null>(null);
+  devicesRef.current = devices;
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -203,7 +209,12 @@ export function ConnectionsView({ onNewChat }: { onNewChat: () => void }) {
   }, []);
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 5000);
+    // Check every 5 s, or every 2 s while an install or sign-in is running.
+    let last = 0;
+    const timer = window.setInterval(() => {
+      const busy = devicesRef.current?.some(d => Object.values(d.actions ?? {}).some(a => a?.status === 'running'));
+      if (document.visibilityState === 'visible' && Date.now() - last >= (busy ? 2000 : 5000)) { last = Date.now(); void refresh(); }
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
@@ -212,9 +223,12 @@ export function ConnectionsView({ onNewChat }: { onNewChat: () => void }) {
     setBusyKey(harness ? `${device.id}:${harness}` : device.id);
     try {
       await deviceAction(device.id, action, harness);
-      if (action === 'login') setNotice(`Finish signing in on ${device.name}: ${harness === 'codex' ? 'a browser window opens there' : 'type /login in the connector window, then /exit'}.`);
-      if (action === 'install' || action === 'update') setNotice(`Installing on ${device.name}. Progress shows in its connector window.`);
-      window.setTimeout(() => { setBusyKey(null); void refresh(); }, 3000);
+      if (action === 'login') setNotice(harness === 'codex'
+        ? `Finish signing in to Codex in the browser window that opens on ${device.name}.`
+        : `A Claude Code window opens on ${device.name}: type /login, finish in your browser, then type /exit.`);
+      // The server now tracks the request, so the row shows progress and the result.
+      await refresh();
+      setBusyKey(null);
     } catch (err) {
       setBusyKey(null);
       setNotice(err instanceof Error ? err.message : 'That did not work.');
@@ -318,6 +332,13 @@ export function ConnectionsView({ onNewChat }: { onNewChat: () => void }) {
                         <div className="min-w-0 flex-1">
                           <p className="font-semibold">{harness.name}</p>
                           <p className="truncate text-sm text-[#8a8478]">{subtitle}</p>
+                          {(() => {
+                            const last = device.actions?.[harness.id];
+                            const recent = last?.finishedAt && Date.now() - Date.parse(last.finishedAt) < 30 * 60_000;
+                            return last?.status === 'failed' && recent && state.tone !== 'ok'
+                              ? <p role="alert" className="mt-1 text-sm break-words text-[#922d1d]">{last.error}</p>
+                              : null;
+                          })()}
                         </div>
                         <Pill tone={state.tone}>{state.label}</Pill>
                         {state.action && (

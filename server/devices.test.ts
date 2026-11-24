@@ -34,7 +34,8 @@ case "$1" in --version) echo "2.1.319 (Claude Code)"; exit 0;; esac
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"attachments/notes.md"}}]}}'
 echo '{"type":"result","subtype":"success","is_error":false,"result":"Read your notes.","usage":{"input_tokens":3,"output_tokens":2}}'
 `, { mode: 0o755 });
-fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\necho 9.9.9\n', { mode: 0o755 });
+// npm answers version checks, but installs fail like a permissions error would.
+fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\n[ "$1" = install ] && { echo "EACCES: permission denied" >&2; exit 1; }\necho 9.9.9\n', { mode: 0o755 });
 fs.mkdirSync(path.join(home, '.claude'));
 fs.writeFileSync(path.join(home, '.claude', '.credentials.json'), '{}');
 
@@ -106,6 +107,14 @@ test('a computer pairs, reports, and runs Codex and Claude jobs through the real
     assert.match(claudeSeen, /FILE: notes\.md/);
     assert.match(claudeSeen, /STDIN: Summarize[\s\S]*attachments\/notes\.md/);
     assert.equal(fs.existsSync(claudeSeen.match(/PWD: (.*)/)![1]), false, 'job folder deleted');
+
+    // A failed install is reported back, not lost.
+    const install = await fetch(`${base}/api/devices/${deviceId}/actions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'install', harness: 'codex' }) });
+    assert.equal(install.status, 202);
+    assert.equal(hub.get(deviceId)!.actions.codex?.status, 'running');
+    await until(() => hub.get(deviceId)!.actions.codex?.status !== 'running');
+    assert.equal(hub.get(deviceId)!.actions.codex?.status, 'failed');
+    assert.match(hub.get(deviceId)!.actions.codex?.error ?? '', /Updating Codex failed|Installing Codex failed/);
 
     // Removing the computer stops the connector.
     await fetch(`${base}/api/devices/${deviceId}`, { method: 'DELETE' });

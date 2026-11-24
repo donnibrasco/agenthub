@@ -29,7 +29,17 @@ export interface DeviceReport {
   activity?: string;
 }
 
+/** The latest Install / Update / Sign in request for one CLI on one computer. */
+export interface ActionState {
+  action: DeviceAction;
+  status: 'running' | 'done' | 'failed';
+  error?: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
 export interface Device {
+  actions: Partial<Record<Harness, ActionState>>;
   id: string;
   name: string;
   platform: string;
@@ -72,6 +82,7 @@ export class DeviceHub {
   private queues = new Map<string, Command[]>();
   private waiters = new Map<string, Response>();
   private commands = new Map<string, Command>();
+  private actions = new Map<string, Partial<Record<Harness, ActionState>>>();
   private db: NeuroDatabase;
 
   constructor(db: NeuroDatabase) {
@@ -103,6 +114,7 @@ export class DeviceHub {
       lastSeenAt: r.last_seen_at, paired: Boolean(r.last_seen_at),
       online: this.waiters.has(r.id) || Date.now() - lastSeen < ONLINE_WINDOW_MS,
       report,
+      actions: this.actions.get(r.id) ?? {},
     };
   }
 
@@ -127,6 +139,7 @@ export class DeviceHub {
 
   remove(id: string) {
     this.db.db.prepare('DELETE FROM devices WHERE id = ?').run(id);
+    this.actions.delete(id);
     this.waiters.get(id)?.status(401).json({ error: 'This computer was removed from AgentHub.' });
     this.waiters.delete(id);
     for (const cmd of this.queues.get(id) ?? []) this.settle(cmd.id, { exitCode: null, error: 'This computer was removed.' });
@@ -275,7 +288,20 @@ export class DeviceHub {
       const dev = this.get(req.params.id);
       if (!dev) { res.status(404).json({ error: 'Computer not found.' }); return; }
       if (!dev.online) { res.status(409).json({ error: `${dev.name} is offline. Start the AgentHub connector on it first.` }); return; }
-      this.send(dev.id, action, harness ? { harness } : {}, { timeoutMs: 15 * 60_000 });
+      const { done } = this.send(dev.id, action, harness ? { harness } : {}, { timeoutMs: 15 * 60_000 });
+      if (harness && action !== 'check') {
+        const states = this.actions.get(dev.id) ?? {};
+        const state: ActionState = { action, status: 'running', startedAt: new Date().toISOString() };
+        states[harness] = state;
+        this.actions.set(dev.id, states);
+        void done.then(result => {
+          // Ignore a result for a request that a newer one replaced.
+          if (this.actions.get(dev.id)?.[harness] !== state) return;
+          state.status = result.exitCode === 0 ? 'done' : 'failed';
+          state.error = result.exitCode === 0 ? undefined : (result.error || 'It did not finish.');
+          state.finishedAt = new Date().toISOString();
+        });
+      }
       res.status(202).json({ ok: true });
     });
   }

@@ -6,7 +6,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shellArgs, startConnector, VERSION as CONNECTOR_VERSION } from './connector.mjs';
+// Loaded after startup (see app.whenReady) so a problem in it shows an error instead of stopping the launch.
+let shellArgs = args => args;
+let startConnector = null;
+let CONNECTOR_VERSION = '?';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = (process.env.AGENTHUB_SERVER || 'https://agenticprocess.io').replace(/\/+$/, '');
@@ -303,7 +306,8 @@ function reportFatal(error) {
 process.on('uncaughtException', reportFatal);
 process.on('unhandledRejection', reportFatal);
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  ({ shellArgs, startConnector, VERSION: CONNECTOR_VERSION } = await import('./connector.mjs'));
   log(`AgentHub ${app.getVersion()} starting on ${process.platform} ${process.arch} (connector ${CONNECTOR_VERSION}, server ${SERVER})`);
   createAppMenu();
   // The window comes first so something always appears.

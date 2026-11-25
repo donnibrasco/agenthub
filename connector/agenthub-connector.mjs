@@ -320,4 +320,14 @@ function cliMain() {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) cliMain();
+/** True only when this file was started directly (`node agenthub-connector.mjs`), never inside the desktop app. */
+function startedFromTerminal() {
+  if (process.versions.electron || !process.argv[1]) return false;
+  try {
+    return import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+  } catch {
+    return false; // argv[1] isn't a file path (for example an app launch flag)
+  }
+}
+
+if (startedFromTerminal()) cliMain();

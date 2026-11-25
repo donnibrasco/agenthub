@@ -51,6 +51,27 @@ jobs:
           fi
       - run: npm ci
       - run: npm run ${{ matrix.script }}
+      - name: Launch test (the built app must start)
+        # Starts the packaged app for 25 s and checks it got through startup; a broken app isn't published.
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            APP="$(find release -path '*AgentHub.app/Contents/MacOS/AgentHub' -type f | head -1)"
+            LOG="$HOME/Library/Application Support/AgentHub/connector.log"
+          else
+            APP="release/win-unpacked/AgentHub.exe"
+            LOG="$APPDATA/AgentHub/connector.log"
+          fi
+          echo "Starting $APP"
+          "$APP" > launch.out 2>&1 &
+          PID=$!
+          sleep 25
+          kill $PID 2>/dev/null || true
+          if [ "$RUNNER_OS" = "Windows" ]; then taskkill //F //IM AgentHub.exe >/dev/null 2>&1 || true; fi
+          echo "--- app output"; cat launch.out || true
+          echo "--- app log"; cat "$LOG" || true
+          if grep -qiE "threw an error during load|Uncaught Exception" launch.out; then echo "::error::The app crashed while starting."; exit 1; fi
+          grep -q "starting on" "$LOG" || { echo "::error::The app didn't finish starting (no startup line in its log)."; exit 1; }
+          echo "The app started correctly."
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}

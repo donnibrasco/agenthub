@@ -1,7 +1,8 @@
 /** The latest desktop release on GitHub, for the homepage download buttons. */
 
 const REPO = process.env.AGENTHUB_RELEASES_REPO?.trim() || 'donnibrasco/agenthub';
-const CACHE_MS = 10 * 60_000;
+// 3 minutes: new releases show up quickly, well within GitHub's 60 requests/hour limit.
+const CACHE_MS = 3 * 60_000;
 
 export const DOWNLOAD_FILES = { mac: 'AgentHub-mac.dmg', windows: 'AgentHub-windows-setup.exe' } as const;
 export type DownloadOs = keyof typeof DOWNLOAD_FILES;
